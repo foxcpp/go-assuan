@@ -99,8 +99,9 @@ func min(a, b int) int {
 // to just CAN transaction after WriteData error.
 func (ctx *Context) WriteData(input []byte) error {
 	encoded := []byte(escapeParameters(string(input)))
-	for i := 0; i < len(encoded); i += MaxLineLen - 3 { // 3 is for 'D ' and line feed.
-		chunk := encoded[i:min(i+50, len(encoded))]
+	chunkLen := MaxLineLen - 3 // 3 is for 'D ' and line feed.
+	for i := 0; i < len(encoded); i += chunkLen {
+		chunk := encoded[i:min(i+chunkLen, len(encoded))]
 		chunk = append([]byte{'D', ' '}, chunk...)
 		chunk = append(chunk, '\n')
 
