@@ -16,7 +16,7 @@ import (
 // server. In pracicular, client.Session (the struct you are looking at)
 // represents client side of connection.
 type Session struct {
-	ctx *common.Context
+	pipe io.ReadWriteCloser
 }
 
 type readWriteCloser struct {
@@ -46,20 +46,20 @@ func (clsr nopCloser) Close() error {
 
 // InitNopClose initiates session using passed Reader/Writer and NOP closer.
 func InitNopClose(pipe io.ReadWriter) *Session {
-	ses := &Session{common.NewContext(nopCloser{pipe})}
+	ses := &Session{nopCloser{pipe}}
 
 	// Take server's OK from pipe.
-	ses.ctx.ReadLine()
+	common.ReadLine(ses.pipe)
 
 	return ses
 }
 
 // Init initiates session using passed Reader/Writer.
 func Init(pipe io.ReadWriteCloser) *Session {
-	ses := &Session{common.NewContext(pipe)}
+	ses := &Session{pipe}
 
 	// Take server's OK from pipe.
-	ses.ctx.ReadLine()
+	common.ReadLine(ses.pipe)
 
 	return ses
 }
@@ -86,11 +86,11 @@ func InitCmd(cmd *exec.Cmd) (*Session, error) {
 
 // Close sends BYE and closes underlying pipe.
 func (ses *Session) Close() error {
-	if err := ses.ctx.WriteLine("BYE", ""); err != nil {
+	if err := common.WriteLine(ses.pipe, "BYE", ""); err != nil {
 		return err
 	}
 	// Server should respond with "OK" , but we don't care.
-	return ses.ctx.Close()
+	return ses.pipe.Close()
 }
 
 // Reset sends RESET command.
@@ -98,11 +98,11 @@ func (ses *Session) Close() error {
 // authentication. The server should release all resources associated with the
 // connection.
 func (ses *Session) Reset() error {
-	if err := ses.ctx.WriteLine("RESET", ""); err != nil {
+	if err := common.WriteLine(ses.pipe, "RESET", ""); err != nil {
 		return err
 	}
 	// Take server's OK from pipe.
-	ok, params, err := ses.ctx.ReadLine()
+	ok, params, err := common.ReadLine(ses.pipe)
 	if err != nil {
 		return err
 	}
@@ -117,13 +117,13 @@ func (ses *Session) Reset() error {
 
 // SimpleCmd sends command with specified parameters and reads data sent by server if any.
 func (ses *Session) SimpleCmd(cmd string, params string) (data []byte, err error) {
-	err = ses.ctx.WriteLine(cmd, params)
+	err = common.WriteLine(ses.pipe, cmd, params)
 	if err != nil {
 		return []byte{}, err
 	}
 
 	for {
-		scmd, sparams, err := ses.ctx.ReadLine()
+		scmd, sparams, err := common.ReadLine(ses.pipe)
 		if err != nil {
 			return []byte{}, err
 		}
@@ -143,13 +143,13 @@ func (ses *Session) SimpleCmd(cmd string, params string) (data []byte, err error
 // Transact sends command with specified params and uses byte arrays in data
 // argument to answer server's inquiries.
 func (ses *Session) Transact(cmd string, params string, data map[string][]byte) (rdata []byte, err error) {
-	err = ses.ctx.WriteLine(cmd, params)
+	err = common.WriteLine(ses.pipe, cmd, params)
 	if err != nil {
 		return []byte{}, err
 	}
 
 	for {
-		scmd, sparams, err := ses.ctx.ReadLine()
+		scmd, sparams, err := common.ReadLine(ses.pipe)
 		if err != nil {
 			return []byte{}, err
 		}
@@ -157,15 +157,18 @@ func (ses *Session) Transact(cmd string, params string, data map[string][]byte) 
 		if scmd == "INQUIRE" {
 			inquireResp, prs := data[sparams]
 			if !prs {
-				ses.ctx.WriteLine("CAN", "")
+				common.WriteLine(ses.pipe, "CAN", "")
+				// TODO: Which error (write err or missing data) is more
+				// important because we can't return both?
+
 				// We asked for FOO but we don't have FOO.
 				return []byte{}, errors.New("missing data with keyword " + sparams)
 			}
 
-			if err := ses.ctx.WriteData(inquireResp); err != nil {
+			if err := common.WriteData(ses.pipe, inquireResp); err != nil {
 				return []byte{}, err
 			}
-			if err := ses.ctx.WriteLine("END", ""); err != nil {
+			if err := common.WriteLine(ses.pipe, "END", ""); err != nil {
 				return []byte{}, err
 			}
 		}
@@ -185,12 +188,12 @@ func (ses *Session) Transact(cmd string, params string, data map[string][]byte) 
 
 // Option sets options for connections.
 func (ses *Session) Option(name string, value string) error {
-	err := ses.ctx.WriteLine("OPTION", name+" = "+value)
+	err := common.WriteLine(ses.pipe, "OPTION", name+" = "+value)
 	if err != nil {
 		return err
 	}
 
-	cmd, sparams, err := ses.ctx.ReadLine()
+	cmd, sparams, err := common.ReadLine(ses.pipe)
 	if err != nil {
 		return err
 	}
