@@ -11,7 +11,7 @@ import (
 // CommandHandler is an alias for command handler function type.
 //
 // state object is useful to store arbitrary data between transactions in
-// single connection, it initialized from object passed into Serve function.
+// single connection, it initialized from object returned by ProtoInfo.GetDefaultState.
 type CommandHandler func(pipe io.ReadWriter, state interface{}, params string) *common.Error
 
 // ProtoInfo describes how to handle commands sent from client on server.
