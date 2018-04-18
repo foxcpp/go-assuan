@@ -3,6 +3,7 @@ package common
 import (
 	"bufio"
 	"errors"
+	"fmt"
 	"io"
 	"strings"
 )
@@ -13,17 +14,27 @@ const (
 	MaxLineLen = 1000
 )
 
+type ReadWriter struct {
+	io.Reader
+	io.Writer
+}
+
 // ReadLine reads raw request/response in following format: command <parameters>
 //
 // Empty lines and lines starting with # are ignored as specified by protocol.
 // Additinally, status information is silently discarded for now.
 func ReadLine(pipe io.Reader) (cmd string, params string, err error) {
 	scanner := bufio.NewScanner(pipe)
+	scanner.Buffer(make([]byte, MaxLineLen), MaxLineLen)
 
 	var line string
 	for {
 		if ok := scanner.Scan(); !ok {
-			return "", "", scanner.Err()
+			err := scanner.Err()
+			if err == nil {
+				err = io.EOF
+			}
+			return "", "", err
 		}
 		line = scanner.Text()
 
@@ -89,7 +100,40 @@ func WriteData(pipe io.Writer, input []byte) error {
 	return nil
 }
 
+// ReadData reads sequence of D commands and joins data together.
+func ReadData(pipe io.Reader) (data []byte, err error) {
+	for {
+		cmd, chunk, err := ReadLine(pipe)
+		if err != nil {
+			return nil, err
+		}
+
+		if cmd == "END" {
+			return data, nil
+		}
+
+		if cmd == "CAN" {
+			return nil, Error{ErrSrcAssuan, ErrUnexpected, "assuan", "IPC call has been cancelled"}
+		}
+
+		if cmd != "D" {
+			return nil, Error{ErrSrcAssuan, ErrUnexpected, "assuan", "unexpected IPC command"}
+		}
+
+		unescaped, err := unescapeParameters(chunk)
+		if err != nil {
+			return nil, err
+		}
+
+		data = append(data, []byte(unescaped)...)
+	}
+}
+
 // WriteComment is special case of WriteLine. "Command" is # and text is parameter.
 func WriteComment(pipe io.Writer, text string) error {
 	return WriteLine(pipe, "#", text)
+}
+
+func WriteError(pipe io.Writer, err Error) error {
+	return WriteLine(pipe, "ERR", fmt.Sprintf("%d %s <%s>", MakeErrCode(err.Src, err.Code), err.Message, err.SrcName))
 }
