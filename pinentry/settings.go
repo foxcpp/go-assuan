@@ -26,8 +26,8 @@ type Settings struct {
 	RepeatPrompt string
 	// Error text to be shown if passwords do not match.
 	RepeatError string
-
-	// Not yet supported..
-	//// Password quality callback.
-	//PasswordQuality func(string) int
+	// Text before password quality bar.
+	QualityBar string
+	// Password quality callback.
+	PasswordQuality func(string) int
 }

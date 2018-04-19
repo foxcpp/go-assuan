@@ -17,8 +17,8 @@ import (
 // server. In pracicular, client.Session (the struct you are looking at)
 // represents client side of connection.
 type Session struct {
-	pipe    io.ReadWriteCloser
-	scanner *bufio.Scanner
+	Pipe    io.ReadWriteCloser
+	Scanner *bufio.Scanner
 }
 
 type readWriteCloser struct {
@@ -49,10 +49,10 @@ func (clsr nopCloser) Close() error {
 // InitNopClose initiates session using passed Reader/Writer and NOP closer.
 func InitNopClose(pipe io.ReadWriter) *Session {
 	ses := &Session{nopCloser{pipe}, bufio.NewScanner(pipe)}
-	ses.scanner.Buffer(make([]byte, common.MaxLineLen), common.MaxLineLen)
+	ses.Scanner.Buffer(make([]byte, common.MaxLineLen), common.MaxLineLen)
 
 	// Take server's OK from pipe.
-	common.ReadLine(ses.scanner)
+	common.ReadLine(ses.Scanner)
 
 	return ses
 }
@@ -60,10 +60,10 @@ func InitNopClose(pipe io.ReadWriter) *Session {
 // Init initiates session using passed Reader/Writer.
 func Init(pipe io.ReadWriteCloser) *Session {
 	ses := &Session{pipe, bufio.NewScanner(pipe)}
-	ses.scanner.Buffer(make([]byte, common.MaxLineLen), common.MaxLineLen)
+	ses.Scanner.Buffer(make([]byte, common.MaxLineLen), common.MaxLineLen)
 
 	// Take server's OK from pipe.
-	common.ReadLine(ses.scanner)
+	common.ReadLine(ses.Scanner)
 
 	return ses
 }
@@ -90,11 +90,11 @@ func InitCmd(cmd *exec.Cmd) (*Session, error) {
 
 // Close sends BYE and closes underlying pipe.
 func (ses *Session) Close() error {
-	if err := common.WriteLine(ses.pipe, "BYE", ""); err != nil {
+	if err := common.WriteLine(ses.Pipe, "BYE", ""); err != nil {
 		return err
 	}
 	// Server should respond with "OK" , but we don't care.
-	return ses.pipe.Close()
+	return ses.Pipe.Close()
 }
 
 // Reset sends RESET command.
@@ -102,11 +102,11 @@ func (ses *Session) Close() error {
 // authentication. The server should release all resources associated with the
 // connection.
 func (ses *Session) Reset() error {
-	if err := common.WriteLine(ses.pipe, "RESET", ""); err != nil {
+	if err := common.WriteLine(ses.Pipe, "RESET", ""); err != nil {
 		return err
 	}
 	// Take server's OK from pipe.
-	ok, params, err := common.ReadLine(ses.scanner)
+	ok, params, err := common.ReadLine(ses.Scanner)
 	if err != nil {
 		return err
 	}
@@ -121,13 +121,13 @@ func (ses *Session) Reset() error {
 
 // SimpleCmd sends command with specified parameters and reads data sent by server if any.
 func (ses *Session) SimpleCmd(cmd string, params string) (data []byte, err error) {
-	err = common.WriteLine(ses.pipe, cmd, params)
+	err = common.WriteLine(ses.Pipe, cmd, params)
 	if err != nil {
 		return []byte{}, err
 	}
 
 	for {
-		scmd, sparams, err := common.ReadLine(ses.scanner)
+		scmd, sparams, err := common.ReadLine(ses.Scanner)
 		if err != nil {
 			return []byte{}, err
 		}
@@ -147,13 +147,13 @@ func (ses *Session) SimpleCmd(cmd string, params string) (data []byte, err error
 // Transact sends command with specified params and uses byte arrays in data
 // argument to answer server's inquiries.
 func (ses *Session) Transact(cmd string, params string, data map[string][]byte) (rdata []byte, err error) {
-	err = common.WriteLine(ses.pipe, cmd, params)
+	err = common.WriteLine(ses.Pipe, cmd, params)
 	if err != nil {
 		return []byte{}, err
 	}
 
 	for {
-		scmd, sparams, err := common.ReadLine(ses.scanner)
+		scmd, sparams, err := common.ReadLine(ses.Scanner)
 		if err != nil {
 			return []byte{}, err
 		}
@@ -161,7 +161,7 @@ func (ses *Session) Transact(cmd string, params string, data map[string][]byte) 
 		if scmd == "INQUIRE" {
 			inquireResp, prs := data[sparams]
 			if !prs {
-				common.WriteLine(ses.pipe, "CAN", "")
+				common.WriteLine(ses.Pipe, "CAN", "")
 				// TODO: Which error (write err or missing data) is more
 				// important because we can't return both?
 
@@ -169,10 +169,10 @@ func (ses *Session) Transact(cmd string, params string, data map[string][]byte) 
 				return []byte{}, errors.New("missing data with keyword " + sparams)
 			}
 
-			if err := common.WriteData(ses.pipe, inquireResp); err != nil {
+			if err := common.WriteData(ses.Pipe, inquireResp); err != nil {
 				return []byte{}, err
 			}
-			if err := common.WriteLine(ses.pipe, "END", ""); err != nil {
+			if err := common.WriteLine(ses.Pipe, "END", ""); err != nil {
 				return []byte{}, err
 			}
 		}
@@ -192,12 +192,12 @@ func (ses *Session) Transact(cmd string, params string, data map[string][]byte) 
 
 // Option sets options for connections.
 func (ses *Session) Option(name string, value string) error {
-	err := common.WriteLine(ses.pipe, "OPTION", name+" = "+value)
+	err := common.WriteLine(ses.Pipe, "OPTION", name+" = "+value)
 	if err != nil {
 		return err
 	}
 
-	cmd, sparams, err := common.ReadLine(ses.scanner)
+	cmd, sparams, err := common.ReadLine(ses.Scanner)
 	if err != nil {
 		return err
 	}
