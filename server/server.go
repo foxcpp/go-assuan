@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bufio"
 	"io"
 	"net"
 	"os"
@@ -34,8 +35,11 @@ func Serve(pipe io.ReadWriter, proto ProtoInfo) error {
 		return err
 	}
 
+	scanner := bufio.NewScanner(pipe)
+	scanner.Buffer(make([]byte, MaxLineLen), MaxLineLen)
+
 	for {
-		cmd, params, err := common.ReadLine(pipe)
+		cmd, params, err := common.ReadLine(scanner)
 		if err != nil {
 			return err
 		}

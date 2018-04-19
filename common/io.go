@@ -23,10 +23,7 @@ type ReadWriter struct {
 //
 // Empty lines and lines starting with # are ignored as specified by protocol.
 // Additinally, status information is silently discarded for now.
-func ReadLine(pipe io.Reader) (cmd string, params string, err error) {
-	scanner := bufio.NewScanner(pipe)
-	scanner.Buffer(make([]byte, MaxLineLen), MaxLineLen)
-
+func ReadLine(scanner *bufio.Scanner) (cmd string, params string, err error) {
 	var line string
 	for {
 		if ok := scanner.Scan(); !ok {
@@ -101,9 +98,9 @@ func WriteData(pipe io.Writer, input []byte) error {
 }
 
 // ReadData reads sequence of D commands and joins data together.
-func ReadData(pipe io.Reader) (data []byte, err error) {
+func ReadData(scanner *bufio.Scanner) (data []byte, err error) {
 	for {
-		cmd, chunk, err := ReadLine(pipe)
+		cmd, chunk, err := ReadLine(scanner)
 		if err != nil {
 			return nil, err
 		}

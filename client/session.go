@@ -1,6 +1,7 @@
 package client
 
 import (
+	"bufio"
 	"errors"
 	"io"
 	"os/exec"
@@ -16,7 +17,8 @@ import (
 // server. In pracicular, client.Session (the struct you are looking at)
 // represents client side of connection.
 type Session struct {
-	pipe io.ReadWriteCloser
+	pipe    io.ReadWriteCloser
+	scanner *bufio.Scanner
 }
 
 type readWriteCloser struct {
@@ -46,20 +48,22 @@ func (clsr nopCloser) Close() error {
 
 // InitNopClose initiates session using passed Reader/Writer and NOP closer.
 func InitNopClose(pipe io.ReadWriter) *Session {
-	ses := &Session{nopCloser{pipe}}
+	ses := &Session{nopCloser{pipe}, bufio.NewScanner(pipe)}
+	ses.scanner.Buffer(make([]byte, common.MaxLineLen), common.MaxLineLen)
 
 	// Take server's OK from pipe.
-	common.ReadLine(ses.pipe)
+	common.ReadLine(ses.scanner)
 
 	return ses
 }
 
 // Init initiates session using passed Reader/Writer.
 func Init(pipe io.ReadWriteCloser) *Session {
-	ses := &Session{pipe}
+	ses := &Session{pipe, bufio.NewScanner(pipe)}
+	ses.scanner.Buffer(make([]byte, common.MaxLineLen), common.MaxLineLen)
 
 	// Take server's OK from pipe.
-	common.ReadLine(ses.pipe)
+	common.ReadLine(ses.scanner)
 
 	return ses
 }
@@ -102,7 +106,7 @@ func (ses *Session) Reset() error {
 		return err
 	}
 	// Take server's OK from pipe.
-	ok, params, err := common.ReadLine(ses.pipe)
+	ok, params, err := common.ReadLine(ses.scanner)
 	if err != nil {
 		return err
 	}
@@ -123,7 +127,7 @@ func (ses *Session) SimpleCmd(cmd string, params string) (data []byte, err error
 	}
 
 	for {
-		scmd, sparams, err := common.ReadLine(ses.pipe)
+		scmd, sparams, err := common.ReadLine(ses.scanner)
 		if err != nil {
 			return []byte{}, err
 		}
@@ -149,7 +153,7 @@ func (ses *Session) Transact(cmd string, params string, data map[string][]byte) 
 	}
 
 	for {
-		scmd, sparams, err := common.ReadLine(ses.pipe)
+		scmd, sparams, err := common.ReadLine(ses.scanner)
 		if err != nil {
 			return []byte{}, err
 		}
@@ -193,7 +197,7 @@ func (ses *Session) Option(name string, value string) error {
 		return err
 	}
 
-	cmd, sparams, err := common.ReadLine(ses.pipe)
+	cmd, sparams, err := common.ReadLine(ses.scanner)
 	if err != nil {
 		return err
 	}
