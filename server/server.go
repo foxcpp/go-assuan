@@ -36,7 +36,7 @@ func Serve(pipe io.ReadWriter, proto ProtoInfo) error {
 	}
 
 	scanner := bufio.NewScanner(pipe)
-	scanner.Buffer(make([]byte, MaxLineLen), MaxLineLen)
+	scanner.Buffer(make([]byte, common.MaxLineLen), common.MaxLineLen)
 
 	for {
 		cmd, params, err := common.ReadLine(scanner)
@@ -47,6 +47,11 @@ func Serve(pipe io.ReadWriter, proto ProtoInfo) error {
 		if cmd == "BYE" {
 			common.WriteLine(pipe, "OK", "")
 			return nil
+		}
+
+		if cmd == "NOP" {
+			common.WriteLine(pipe, "OK", "")
+			continue
 		}
 
 		if cmd == "RESET" {
@@ -62,6 +67,7 @@ func Serve(pipe io.ReadWriter, proto ProtoInfo) error {
 				state = nil
 				common.WriteLine(pipe, "OK", "")
 			}
+			continue
 		}
 
 		if cmd == "HELP" {

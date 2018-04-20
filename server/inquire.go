@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bufio"
 	"io"
 
 	"github.com/foxcpp/go-assuan/common"
@@ -22,7 +23,7 @@ import (
 // Note: No OK or ERR sent after completion. You must report errors returned
 // by this function manually using WriteError or send OK.
 // This function can return common.Error, so you can do the following:
-//	 data, err := server.Inquire(pipe, ...)
+//	 data, err := server.Inquire(scnr, pipe, ...)
 //	 if err != nil {
 //	     if e, ok := err.(common.Error); ok {
 //	  	   // Protocol error, report it to other peer (client).
@@ -31,13 +32,13 @@ import (
 //	  	   // Internal error, do something else...
 //	     }
 //	 }
-func Inquire(pipe io.ReadWriter, keywords []string) (res map[string][]byte, err error) {
+func Inquire(scnr *bufio.Scanner, pipe io.Writer, keywords []string) (res map[string][]byte, err error) {
 	for _, keyword := range keywords {
 		if err := common.WriteLine(pipe, "INQUIRE", keyword); err != nil {
 			return nil, err
 		}
 
-		data, err := common.ReadData(pipe)
+		data, err := common.ReadData(scnr)
 		if err != nil {
 			return nil, err
 		}
