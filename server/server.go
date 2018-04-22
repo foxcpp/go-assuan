@@ -109,6 +109,12 @@ func helpCmd(pipe io.Writer, proto ProtoInfo, params string) {
 		}
 	} else {
 		// Just HELP, print commands.
+		common.WriteComment(pipe, "NOP")
+		common.WriteComment(pipe, "CANCEL")
+		common.WriteComment(pipe, "BYE")
+		common.WriteComment(pipe, "RESET")
+		common.WriteComment(pipe, "END")
+		common.WriteComment(pipe, "HELP")
 		for k := range proto.Handlers {
 			common.WriteComment(pipe, k)
 		}
