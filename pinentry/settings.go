@@ -2,6 +2,21 @@ package pinentry
 
 import "time"
 
+type Options struct {
+	Grab                bool
+	Display             string
+	TTYType             string
+	TTYName             string
+	TTYAlert            string
+	LCCtype             string
+	LCMessages          string
+	Owner               string
+	TouchFile           string
+	ParentWID           string
+	InvisibleChar       string
+	AllowExtPasswdCache bool
+}
+
 // Settings struct contains options for pinentry prompt.
 type Settings struct {
 	// Detailed description of request.
@@ -30,4 +45,6 @@ type Settings struct {
 	QualityBar string
 	// Password quality callback.
 	PasswordQuality func(string) int
+
+	Opts Options
 }

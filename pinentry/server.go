@@ -3,6 +3,7 @@ package pinentry
 import (
 	"io"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/foxcpp/go-assuan/common"
@@ -66,6 +67,67 @@ func setTimeout(_ io.ReadWriter, state interface{}, params string) *common.Error
 	state.(*Settings).Timeout = time.Duration(i)
 	return nil
 }
+func setOpt(state interface{}, key string, val string) *common.Error {
+	opts := state.(*Settings)
+
+	if key == "no-grab" {
+		opts.Opts.Grab = false
+		return nil
+	}
+	if key == "grab" {
+		opts.Opts.Grab = true
+		return nil
+	}
+	if key == "ttytype" {
+		opts.Opts.TTYType = val
+		return nil
+	}
+	if key == "ttyname" {
+		opts.Opts.TTYName = val
+		return nil
+	}
+	if key == "ttyalert" {
+		opts.Opts.TTYAlert = val
+		return nil
+	}
+	if key == "lc-ctype" {
+		opts.Opts.LCCtype = val
+		return nil
+	}
+	if key == "lc-messages" {
+		opts.Opts.LCMessages = val
+		return nil
+	}
+	if key == "owner" {
+		opts.Opts.Owner = val
+		return nil
+	}
+	if key == "touch-file" {
+		opts.Opts.TouchFile = val
+		return nil
+	}
+	if key == "parent-wid" {
+		opts.Opts.ParentWID = val
+		return nil
+	}
+	if key == "invisible-char" {
+		opts.Opts.InvisibleChar = val
+		return nil
+	}
+	if key == "allow-external-password-cache" {
+		opts.Opts.AllowExtPasswdCache = true
+		return nil
+	}
+
+	if strings.HasPrefix(key, "default-") {
+		return nil
+	}
+
+	return &common.Error{
+		common.ErrSrcPinentry, common.ErrUnknownOption,
+		"pinentry", "unknown option: " + key,
+	}
+}
 
 var ProtoInfo = server.ProtoInfo{
 	Greeting: "go-assuan pinentry",
@@ -86,6 +148,7 @@ var ProtoInfo = server.ProtoInfo{
 	GetDefaultState: func() interface{} {
 		return &Settings{}
 	},
+	SetOption: setOpt,
 }
 
 func Serve(callbacks Callbacks, customGreeting string) error {

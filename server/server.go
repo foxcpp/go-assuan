@@ -5,6 +5,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"regexp"
 
 	"github.com/foxcpp/go-assuan/common"
 )
@@ -26,6 +27,24 @@ type ProtoInfo struct {
 	Help map[string][]string
 	// Function that should return newly allocated state object for protocol.
 	GetDefaultState func() interface{}
+	// Function that should set option passed via OPTION command or return an error.
+	SetOption func(state interface{}, key string, val string) *common.Error
+}
+
+var optRegexp = regexp.MustCompile(`^([\d\w\-]+)(?:[ =](.*))?$`)
+
+func splitOption(params string) (key string, val string, err *common.Error) {
+	groups := optRegexp.FindStringSubmatch(params)
+	if groups == nil {
+		return "", "", &common.Error{
+			common.ErrSrcAssuan, common.ErrAssInvValue,
+			"assuan", "invalid OPTION syntax",
+		}
+	}
+
+	key = groups[1]
+	val = groups[2]
+	return
 }
 
 // Serve function accepts incoming connection using specified protocol and initial state value.
@@ -70,6 +89,27 @@ func Serve(pipe io.ReadWriter, proto ProtoInfo) error {
 			continue
 		}
 
+		if cmd == "OPTION" {
+			if proto.SetOption == nil {
+				common.WriteError(pipe, common.Error{
+					common.ErrSrcAssuan, common.ErrNotImplemented,
+					"assuan", "not implemented",
+				})
+				continue
+			}
+			key, value, err := splitOption(params)
+			if err != nil {
+				common.WriteError(pipe, *err)
+				continue
+			}
+			err = proto.SetOption(state, key, value)
+			if err != nil {
+				common.WriteError(pipe, *err)
+			}
+			common.WriteLine(pipe, "OK", "")
+			continue
+		}
+
 		if cmd == "HELP" {
 			helpCmd(pipe, proto, params)
 			continue
@@ -110,6 +150,7 @@ func helpCmd(pipe io.Writer, proto ProtoInfo, params string) {
 	} else {
 		// Just HELP, print commands.
 		common.WriteComment(pipe, "NOP")
+		common.WriteComment(pipe, "OPTION")
 		common.WriteComment(pipe, "CANCEL")
 		common.WriteComment(pipe, "BYE")
 		common.WriteComment(pipe, "RESET")
@@ -124,7 +165,7 @@ func helpCmd(pipe io.Writer, proto ProtoInfo, params string) {
 
 // ServeStdin is same as Serve but uses stdin and stdout as communication channel.
 func ServeStdin(proto ProtoInfo) error {
-	return Serve(common.ReadWriter{os.Stdout, os.Stdin}, proto)
+	return Serve(common.ReadWriter{os.Stdin, os.Stdout}, proto)
 }
 
 // Listener is a minimal interface implemented by net.UnixListener and net.TCPListener.
