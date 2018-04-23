@@ -33,13 +33,16 @@ import (
 //	     }
 //	 }
 func Inquire(scnr *bufio.Scanner, pipe io.Writer, keywords []string) (res map[string][]byte, err error) {
+	Logger.Println("Sending inquire group:", keywords)
 	for _, keyword := range keywords {
 		if err := common.WriteLine(pipe, "INQUIRE", keyword); err != nil {
+			Logger.Println("... I/O error:", err)
 			return nil, err
 		}
 
 		data, err := common.ReadData(scnr)
 		if err != nil {
+			Logger.Println("... I/O error:", err)
 			return nil, err
 		}
 

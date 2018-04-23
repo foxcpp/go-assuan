@@ -5,6 +5,8 @@ package common
 import "syscall"
 
 func init() {
-	println("Locking all memory")
-	syscall.Mlockall(syscall.MCL_CURRENT | syscall.MCL_FUTURE)
+	Logger.Println("Locking all memory...")
+	if err := syscall.Mlockall(syscall.MCL_CURRENT | syscall.MCL_FUTURE); err != nil {
+		Logger.Println("... failed:" err)
+	}
 }

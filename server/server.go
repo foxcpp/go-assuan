@@ -49,8 +49,10 @@ func splitOption(params string) (key string, val string, err *common.Error) {
 
 // Serve function accepts incoming connection using specified protocol and initial state value.
 func Serve(pipe io.ReadWriter, proto ProtoInfo) error {
+	Logger.Println("Accepted session")
 	state := proto.GetDefaultState()
 	if err := common.WriteLine(pipe, "OK", proto.Greeting); err != nil {
+		Logger.Println("I/O error, dropping session:", err)
 		return err
 	}
 
@@ -60,11 +62,13 @@ func Serve(pipe io.ReadWriter, proto ProtoInfo) error {
 	for {
 		cmd, params, err := common.ReadLine(scanner)
 		if err != nil {
+			Logger.Println("I/O error, dropping session:", err)
 			return err
 		}
 
 		if cmd == "BYE" {
 			common.WriteLine(pipe, "OK", "")
+			Logger.Println("Session finished")
 			return nil
 		}
 
@@ -74,6 +78,7 @@ func Serve(pipe io.ReadWriter, proto ProtoInfo) error {
 		}
 
 		if cmd == "RESET" {
+			Logger.Println("Session reset")
 			if hndlr, prs := proto.Handlers["RESET"]; prs {
 				err := hndlr(pipe, state, params)
 				if err != nil {
@@ -90,7 +95,9 @@ func Serve(pipe io.ReadWriter, proto ProtoInfo) error {
 		}
 
 		if cmd == "OPTION" {
+			Logger.Println("Option set request:", params)
 			if proto.SetOption == nil {
+				Logger.Println("... no options supported in this protocol")
 				common.WriteError(pipe, common.Error{
 					common.ErrSrcAssuan, common.ErrNotImplemented,
 					"assuan", "not implemented",
@@ -99,11 +106,13 @@ func Serve(pipe io.ReadWriter, proto ProtoInfo) error {
 			}
 			key, value, err := splitOption(params)
 			if err != nil {
+				Logger.Println("... malformed request: ", err)
 				common.WriteError(pipe, *err)
 				continue
 			}
 			err = proto.SetOption(state, key, value)
 			if err != nil {
+				Logger.Println("... invalid option:", err)
 				common.WriteError(pipe, *err)
 			}
 			common.WriteLine(pipe, "OK", "")
@@ -111,12 +120,15 @@ func Serve(pipe io.ReadWriter, proto ProtoInfo) error {
 		}
 
 		if cmd == "HELP" {
+			Logger.Println("Help request")
 			helpCmd(pipe, proto, params)
 			continue
 		}
 
+		Logger.Println("Protocol command received:", cmd)
 		hndlr, prs := proto.Handlers[cmd]
 		if !prs {
+			Logger.Println("... unknown command:", cmd)
 			common.WriteError(pipe, common.Error{
 				common.ErrSrcAssuan, common.ErrAssUnknownCmd,
 				"assuan", "unknown IPC command",
@@ -125,6 +137,7 @@ func Serve(pipe io.ReadWriter, proto ProtoInfo) error {
 		}
 
 		if err := hndlr(pipe, state, params); err != nil {
+			Logger.Println("... handler error:", err)
 			common.WriteError(pipe, *err)
 		} else {
 			common.WriteLine(pipe, "OK", "")
@@ -137,6 +150,7 @@ func helpCmd(pipe io.Writer, proto ProtoInfo, params string) {
 		// Help requested for command.
 		helpStrs, prs := proto.Help[params]
 		if !prs {
+			Logger.Println("Help requested for unknown command:", params)
 			common.WriteError(pipe, common.Error{
 				common.ErrSrcAssuan, common.ErrNotFound,
 				"not found", "assuan",
@@ -182,6 +196,7 @@ func ServeNet(listener Listener, proto ProtoInfo) error {
 		if err != nil {
 			return err
 		}
+		Logger.Println("Received remote connection on", conn.LocalAddr(), "from", conn.RemoteAddr())
 		go func() {
 			defer conn.Close()
 			Serve(conn, proto)

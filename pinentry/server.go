@@ -160,6 +160,7 @@ func Serve(callbacks Callbacks, customGreeting string) error {
 
 	info.Handlers["GETPIN"] = func(pipe io.ReadWriter, state interface{}, _ string) *common.Error {
 		if callbacks.GetPIN == nil {
+			Logger.Println("GETPIN requested but not supported")
 			return &common.Error{
 				common.ErrSrcPinentry, common.ErrNotImplemented,
 				"pinentry", "GETPIN op is not supported",
@@ -176,6 +177,7 @@ func Serve(callbacks Callbacks, customGreeting string) error {
 	}
 	info.Handlers["CONFIRM"] = func(pipe io.ReadWriter, state interface{}, _ string) *common.Error {
 		if callbacks.Confirm == nil {
+			Logger.Println("CONFIRM requested but not supported")
 			return &common.Error{
 				common.ErrSrcPinentry, common.ErrNotImplemented,
 				"pinentry", "CONFIRM op is not supported",
@@ -194,6 +196,7 @@ func Serve(callbacks Callbacks, customGreeting string) error {
 	}
 	info.Handlers["MESSAGE"] = func(pipe io.ReadWriter, state interface{}, _ string) *common.Error {
 		if callbacks.Msg == nil {
+			Logger.Println("MESSAGE requested but not supported")
 			return &common.Error{
 				common.ErrSrcPinentry, common.ErrNotImplemented,
 				"pinentry", "MESSAGE op is not supported",

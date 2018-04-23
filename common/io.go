@@ -63,6 +63,7 @@ func ReadLine(scanner *bufio.Scanner) (cmd string, params string, err error) {
 // Contents of params is escaped according to requirements of Assuan protocol.
 func WriteLine(pipe io.Writer, cmd string, params string) error {
 	if len(cmd)+len(params)+2 > MaxLineLen {
+		Logger.Println("Refusing to send too long command")
 		// 2 is for whitespace after command and LF
 		return errors.New("too long command or parameters")
 	}

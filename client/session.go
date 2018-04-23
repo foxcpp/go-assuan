@@ -47,25 +47,34 @@ func (clsr nopCloser) Close() error {
 }
 
 // InitNopClose initiates session using passed Reader/Writer and NOP closer.
-func InitNopClose(pipe io.ReadWriter) *Session {
+func InitNopClose(pipe io.ReadWriter) (*Session, error) {
 	ses := &Session{nopCloser{pipe}, bufio.NewScanner(pipe)}
 	ses.Scanner.Buffer(make([]byte, common.MaxLineLen), common.MaxLineLen)
 
 	// Take server's OK from pipe.
-	common.ReadLine(ses.Scanner)
+	_, _, err := common.ReadLine(ses.Scanner)
+	if err != nil {
+		Logger.Println("... I/O error:", err)
+		return nil, err
+	}
 
-	return ses
+	return ses, nil
 }
 
 // Init initiates session using passed Reader/Writer.
-func Init(pipe io.ReadWriteCloser) *Session {
+func Init(pipe io.ReadWriteCloser) (*Session, error) {
+	Logger.Println("Starting session...")
 	ses := &Session{pipe, bufio.NewScanner(pipe)}
 	ses.Scanner.Buffer(make([]byte, common.MaxLineLen), common.MaxLineLen)
 
 	// Take server's OK from pipe.
-	common.ReadLine(ses.Scanner)
+	_, _, err := common.ReadLine(ses.Scanner)
+	if err != nil {
+		Logger.Println("... I/O error:", err)
+		return nil, err
+	}
 
-	return ses
+	return ses, nil
 }
 
 // InitCmd initiates session using command's stdin and stdout as a I/O channel.
@@ -82,15 +91,18 @@ func InitCmd(cmd *exec.Cmd) (*Session, error) {
 	}
 
 	if err := cmd.Start(); err != nil {
+		Logger.Println("Failed to start command ("+cmd.Path+"):", err)
 		return nil, err
 	}
 
-	return Init(readWriteCloser{stdout, stdin}), nil
+	return Init(readWriteCloser{stdout, stdin})
 }
 
 // Close sends BYE and closes underlying pipe.
 func (ses *Session) Close() error {
+	Logger.Println("Closing session (sending BYE)...")
 	if err := common.WriteLine(ses.Pipe, "BYE", ""); err != nil {
+		Logger.Println("... I/O error:", err)
 		return err
 	}
 	// Server should respond with "OK" , but we don't care.
@@ -102,15 +114,18 @@ func (ses *Session) Close() error {
 // authentication. The server should release all resources associated with the
 // connection.
 func (ses *Session) Reset() error {
+	Logger.Println("Resetting session...")
 	if err := common.WriteLine(ses.Pipe, "RESET", ""); err != nil {
 		return err
 	}
 	// Take server's OK from pipe.
 	ok, params, err := common.ReadLine(ses.Scanner)
 	if err != nil {
+		Logger.Println("... I/O error:", err)
 		return err
 	}
 	if ok == "ERR" {
+		Logger.Println("... Received ERR: ", params)
 		return common.DecodeErrCmd(params)
 	}
 	if ok != "OK" {
@@ -121,14 +136,17 @@ func (ses *Session) Reset() error {
 
 // SimpleCmd sends command with specified parameters and reads data sent by server if any.
 func (ses *Session) SimpleCmd(cmd string, params string) (data []byte, err error) {
+	Logger.Println("Sending command:", cmd, params)
 	err = common.WriteLine(ses.Pipe, cmd, params)
 	if err != nil {
+		Logger.Println("... I/O error:", err)
 		return []byte{}, err
 	}
 
 	for {
 		scmd, sparams, err := common.ReadLine(ses.Scanner)
 		if err != nil {
+			Logger.Println("... I/O error:", err)
 			return []byte{}, err
 		}
 
@@ -136,6 +154,7 @@ func (ses *Session) SimpleCmd(cmd string, params string) (data []byte, err error
 			return data, nil
 		}
 		if scmd == "ERR" {
+			Logger.Println("... Received ERR: ", sparams)
 			return []byte{}, common.DecodeErrCmd(sparams)
 		}
 		if scmd == "D" {
@@ -147,6 +166,7 @@ func (ses *Session) SimpleCmd(cmd string, params string) (data []byte, err error
 // Transact sends command with specified params and uses byte arrays in data
 // argument to answer server's inquiries.
 func (ses *Session) Transact(cmd string, params string, data map[string][]byte) (rdata []byte, err error) {
+	Logger.Println("Initiating transaction:", cmd, params)
 	err = common.WriteLine(ses.Pipe, cmd, params)
 	if err != nil {
 		return []byte{}, err
@@ -161,6 +181,7 @@ func (ses *Session) Transact(cmd string, params string, data map[string][]byte) 
 		if scmd == "INQUIRE" {
 			inquireResp, prs := data[sparams]
 			if !prs {
+				Logger.Println("... unknown request:", sparams)
 				common.WriteLine(ses.Pipe, "CAN", "")
 				// TODO: Which error (write err or missing data) is more
 				// important because we can't return both?
@@ -170,9 +191,11 @@ func (ses *Session) Transact(cmd string, params string, data map[string][]byte) 
 			}
 
 			if err := common.WriteData(ses.Pipe, inquireResp); err != nil {
+				Logger.Println("... I/O error:", err)
 				return []byte{}, err
 			}
 			if err := common.WriteLine(ses.Pipe, "END", ""); err != nil {
+				Logger.Println("... I/O error:", err)
 				return []byte{}, err
 			}
 		}
@@ -182,9 +205,11 @@ func (ses *Session) Transact(cmd string, params string, data map[string][]byte) 
 			return rdata, nil
 		}
 		if scmd == "ERR" {
+			Logger.Println("... Received ERR: ", sparams)
 			return []byte{}, common.DecodeErrCmd(sparams)
 		}
 		if scmd == "D" {
+			Logger.Println("... Received data chunk")
 			rdata = append(rdata, []byte(sparams)...)
 		}
 	}
@@ -192,16 +217,20 @@ func (ses *Session) Transact(cmd string, params string, data map[string][]byte) 
 
 // Option sets options for connections.
 func (ses *Session) Option(name string, value string) error {
+	Logger.Println("Setting option", name, "to", value+"...")
 	err := common.WriteLine(ses.Pipe, "OPTION", name+" = "+value)
 	if err != nil {
+		Logger.Println("... I/O error: ", err)
 		return err
 	}
 
 	cmd, sparams, err := common.ReadLine(ses.Scanner)
 	if err != nil {
+		Logger.Println("... I/O error: ", err)
 		return err
 	}
 	if cmd == "ERR" {
+		Logger.Println("... Received ERR: ", sparams)
 		return common.DecodeErrCmd(sparams)
 	}
 
