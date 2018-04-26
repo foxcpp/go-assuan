@@ -21,12 +21,12 @@ type Session struct {
 	Scanner *bufio.Scanner
 }
 
-type readWriteCloser struct {
+type ReadWriteCloser struct {
 	io.ReadCloser
 	io.WriteCloser
 }
 
-func (rwc readWriteCloser) Close() error {
+func (rwc ReadWriteCloser) Close() error {
 	if err := rwc.ReadCloser.Close(); err != nil {
 		return err
 	}
@@ -95,7 +95,7 @@ func InitCmd(cmd *exec.Cmd) (*Session, error) {
 		return nil, err
 	}
 
-	return Init(readWriteCloser{stdout, stdin})
+	return Init(ReadWriteCloser{stdout, stdin})
 }
 
 // Close sends BYE and closes underlying pipe.
@@ -164,8 +164,9 @@ func (ses *Session) SimpleCmd(cmd string, params string) (data []byte, err error
 }
 
 // Transact sends command with specified params and uses byte arrays in data
-// argument to answer server's inquiries.
-func (ses *Session) Transact(cmd string, params string, data map[string][]byte) (rdata []byte, err error) {
+// argument to answer server's inquiries. Values in data can be either []byte
+// or pointer to implementer of io.Reader.
+func (ses *Session) Transact(cmd string, params string, data map[string]interface{}) (rdata []byte, err error) {
 	Logger.Println("Initiating transaction:", cmd, params)
 	err = common.WriteLine(ses.Pipe, cmd, params)
 	if err != nil {
@@ -182,18 +183,29 @@ func (ses *Session) Transact(cmd string, params string, data map[string][]byte) 
 			inquireResp, prs := data[sparams]
 			if !prs {
 				Logger.Println("... unknown request:", sparams)
-				common.WriteLine(ses.Pipe, "CAN", "")
-				// TODO: Which error (write err or missing data) is more
-				// important because we can't return both?
+				if err := common.WriteLine(ses.Pipe, "CAN", ""); err != nil {
+					return nil, err
+				}
 
 				// We asked for FOO but we don't have FOO.
 				return []byte{}, errors.New("missing data with keyword " + sparams)
 			}
 
-			if err := common.WriteData(ses.Pipe, inquireResp); err != nil {
-				Logger.Println("... I/O error:", err)
-				return []byte{}, err
+			switch inquireResp.(type) {
+			case []byte:
+				if err := common.WriteData(ses.Pipe, inquireResp.([]byte)); err != nil {
+					Logger.Println("... I/O error:", err)
+					return []byte{}, err
+				}
+			case io.Reader:
+				if err := common.WriteDataReader(ses.Pipe, inquireResp.(io.Reader)); err != nil {
+					Logger.Println("... I/O error:", err)
+					return []byte{}, err
+				}
+			default:
+				return nil, errors.New("invalid type in data map value")
 			}
+
 			if err := common.WriteLine(ses.Pipe, "END", ""); err != nil {
 				Logger.Println("... I/O error:", err)
 				return []byte{}, err

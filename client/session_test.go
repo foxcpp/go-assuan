@@ -10,7 +10,7 @@ import (
 func ExampleSession() {
 	// Connect to dirmngr.
 	conn, _ := net.Dial("unix", ".gnupg/S.dirmngr")
-	ses := assuan.Init(conn)
+	ses, _ := assuan.Init(conn)
 	defer ses.Close()
 
 	// Search for my key on default keyserver.

@@ -49,6 +49,8 @@ func ReadLine(scanner *bufio.Scanner) (cmd string, params string, err error) {
 		return strings.ToUpper(parts[0]), "", nil
 	}
 
+	Logger.Println("<", parts[0])
+
 	params, err = unescapeParameters(parts[1])
 	if err != nil {
 		return "", "", err
@@ -67,6 +69,8 @@ func WriteLine(pipe io.Writer, cmd string, params string) error {
 		// 2 is for whitespace after command and LF
 		return errors.New("too long command or parameters")
 	}
+
+	Logger.Println(">", cmd)
 
 	line := []byte(strings.ToUpper(cmd) + " " + escapeParameters(params) + "\n")
 	_, err := pipe.Write(line)
@@ -96,6 +100,28 @@ func WriteData(pipe io.Writer, input []byte) error {
 		}
 	}
 	return nil
+}
+
+func WriteDataReader(pipe io.Writer, input io.Reader) error {
+	chunkLen := MaxLineLen - 3 // 3 is for 'D ' and line feed.
+	buf := make([]byte, chunkLen)
+
+	for {
+		n, err := input.Read(buf)
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+
+		chunk := []byte(escapeParameters(string(buf[:n])))
+		chunk = append([]byte{'D', ' '}, chunk...)
+		chunk = append(chunk, '\n')
+		if _, err := pipe.Write(chunk); err != nil {
+			return err
+		}
+	}
 }
 
 // ReadData reads sequence of D commands and joins data together.
