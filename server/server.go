@@ -42,9 +42,7 @@ func splitOption(params string) (key string, val string, err *common.Error) {
 		}
 	}
 
-	key = groups[1]
-	val = groups[2]
-	return
+	return groups[1], groups[2], nil
 }
 
 // Serve function accepts incoming connection using specified protocol and initial state value.
@@ -66,86 +64,42 @@ func Serve(pipe io.ReadWriter, proto ProtoInfo) error {
 			return err
 		}
 
-		if cmd == "BYE" {
+		switch cmd {
+		case "BYE":
 			common.WriteLine(pipe, "OK", "")
 			Logger.Println("Session finished")
-			return nil
-		}
-
-		if cmd == "NOP" {
+		case "NOP":
 			common.WriteLine(pipe, "OK", "")
-			continue
-		}
-
-		if cmd == "RESET" {
-			Logger.Println("Session reset")
-			if hndlr, prs := proto.Handlers["RESET"]; prs {
-				err := hndlr(pipe, state, params)
-				if err != nil {
-					common.WriteError(pipe, *err)
-				} else {
-					common.WriteLine(pipe, "OK", "")
-				}
-			} else {
-				// Default RESET handler: Reset context to null.
-				state = nil
-				common.WriteLine(pipe, "OK", "")
-			}
-			continue
-		}
-
-		if cmd == "OPTION" {
-			Logger.Println("Option set request:", params)
-			if proto.SetOption == nil {
-				Logger.Println("... no options supported in this protocol")
+		case "RESET":
+			resetCmd(pipe, &state, proto)
+		case "OPTION":
+			optionCmd(pipe, state, proto, params)
+		case "HELP":
+			helpCmd(pipe, proto, params)
+		default:
+			Logger.Println("Protocol command received:", cmd)
+			hndlr, prs := proto.Handlers[cmd]
+			if !prs {
+				Logger.Println("... unknown command:", cmd)
 				common.WriteError(pipe, common.Error{
-					common.ErrSrcAssuan, common.ErrNotImplemented,
-					"assuan", "not implemented",
+					common.ErrSrcAssuan, common.ErrAssUnknownCmd,
+					"assuan", "unknown IPC command",
 				})
 				continue
 			}
-			key, value, err := splitOption(params)
-			if err != nil {
-				Logger.Println("... malformed request: ", err)
+
+			if err := hndlr(pipe, state, params); err != nil {
+				Logger.Println("... handler error:", err)
 				common.WriteError(pipe, *err)
-				continue
+			} else {
+				common.WriteLine(pipe, "OK", "")
 			}
-			err = proto.SetOption(state, key, value)
-			if err != nil {
-				Logger.Println("... invalid option:", err)
-				common.WriteError(pipe, *err)
-			}
-			common.WriteLine(pipe, "OK", "")
-			continue
-		}
-
-		if cmd == "HELP" {
-			Logger.Println("Help request")
-			helpCmd(pipe, proto, params)
-			continue
-		}
-
-		Logger.Println("Protocol command received:", cmd)
-		hndlr, prs := proto.Handlers[cmd]
-		if !prs {
-			Logger.Println("... unknown command:", cmd)
-			common.WriteError(pipe, common.Error{
-				common.ErrSrcAssuan, common.ErrAssUnknownCmd,
-				"assuan", "unknown IPC command",
-			})
-			continue
-		}
-
-		if err := hndlr(pipe, state, params); err != nil {
-			Logger.Println("... handler error:", err)
-			common.WriteError(pipe, *err)
-		} else {
-			common.WriteLine(pipe, "OK", "")
 		}
 	}
 }
 
 func helpCmd(pipe io.Writer, proto ProtoInfo, params string) {
+	Logger.Println("Help request")
 	if len(params) != 0 {
 		// Help requested for command.
 		helpStrs, prs := proto.Help[params]
@@ -175,6 +129,46 @@ func helpCmd(pipe io.Writer, proto ProtoInfo, params string) {
 		}
 		common.WriteLine(pipe, "OK", "")
 	}
+}
+
+func resetCmd(pipe io.ReadWriter, state *interface{}, proto ProtoInfo) {
+	Logger.Println("Session reset")
+	if hndlr, prs := proto.Handlers["RESET"]; prs {
+		err := hndlr(pipe, *state, "")
+		if err != nil {
+			common.WriteError(pipe, *err)
+		} else {
+			common.WriteLine(pipe, "OK", "")
+		}
+	} else {
+		// Default RESET handler: Reset context to null.
+		*state = nil
+		common.WriteLine(pipe, "OK", "")
+	}
+}
+
+func optionCmd(pipe io.Writer, state interface{}, proto ProtoInfo, params string) {
+	Logger.Println("Option set request:", params)
+	if proto.SetOption == nil {
+		Logger.Println("... no options supported in this protocol")
+		common.WriteError(pipe, common.Error{
+			common.ErrSrcAssuan, common.ErrNotImplemented,
+			"assuan", "not implemented",
+		})
+		return
+	}
+	key, value, err := splitOption(params)
+	if err != nil {
+		Logger.Println("... malformed request: ", err)
+		common.WriteError(pipe, *err)
+		return
+	}
+	err = proto.SetOption(state, key, value)
+	if err != nil {
+		Logger.Println("... invalid option:", err)
+		common.WriteError(pipe, *err)
+	}
+	common.WriteLine(pipe, "OK", "")
 }
 
 // ServeStdin is same as Serve but uses stdin and stdout as communication channel.

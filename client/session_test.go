@@ -20,7 +20,7 @@ func ExampleSession() {
 
 	// More complex transaction: send key to keyserver.
 	ses.Transact("KS_PUT", "", map[string][]byte{
-		"KEYBLOCK":      []byte{},
-		"KEYBLOCK_INFO": []byte{},
+		"KEYBLOCK":      {},
+		"KEYBLOCK_INFO": {},
 	})
 }

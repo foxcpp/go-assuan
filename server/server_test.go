@@ -41,10 +41,10 @@ func ExampleProtoInfo() {
 			"GETPIN":  server.CommandHandler(getpin),
 		},
 		Help: map[string][]string{
-			"SETDESC": []string{
+			"SETDESC": {
 				"Set request description",
 			},
-			"GETPIN": []string{
+			"GETPIN": {
 				"Read string from TTY",
 			},
 		},

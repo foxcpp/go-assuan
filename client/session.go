@@ -21,19 +21,19 @@ type Session struct {
 	Scanner *bufio.Scanner
 }
 
+// ReadWriteCloser - a bit of glue between io.ReadCloser and io.WriteCloser.
 type ReadWriteCloser struct {
 	io.ReadCloser
 	io.WriteCloser
 }
 
+// Close closes both io.ReadCloser and io.WriteCloser. Writer will not closed
+// if Reader close failed.
 func (rwc ReadWriteCloser) Close() error {
 	if err := rwc.ReadCloser.Close(); err != nil {
 		return err
 	}
-	if err := rwc.WriteCloser.Close(); err != nil {
-		return err
-	}
-	return nil
+	return rwc.WriteCloser.Close()
 }
 
 // Implements no-op Close() function in additional to holding reference to

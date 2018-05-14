@@ -1,5 +1,6 @@
 go-assuan
 ===========
+[![Go Report Card](https://goreportcard.com/badge/github.com/foxcpp/go-assuan)](https://goreportcard.com/report/github.com/foxcpp/go-assuan)
 
 Pure Go implementation of Assuan IPC protocol.
 
@@ -22,7 +23,7 @@ name (typically in uppercase) and one or more parameters (represented as one
 string). Each command sent by client have response with status ("OK" or error)
 and optional arbitrary data. 
 
-In additional to simple commands there is transactions (data inquiries).
+In additional to simple commands there are transactions (data inquiries).
 This is one way to send large data streams from client. Transaction is
 initiated by command and then server will request data using keywords (actually
 one keyword per stream). Client can cancel data transmission at any time. At

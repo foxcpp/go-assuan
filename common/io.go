@@ -14,6 +14,8 @@ const (
 	MaxLineLen = 1000
 )
 
+// ReadWriter ties arbitrary io.Reader and io.Writer to get a struct that
+// satisfies io.ReadWriter requirements.
 type ReadWriter struct {
 	io.Reader
 	io.Writer
@@ -22,7 +24,7 @@ type ReadWriter struct {
 // ReadLine reads raw request/response in following format: command <parameters>
 //
 // Empty lines and lines starting with # are ignored as specified by protocol.
-// Additinally, status information is silently discarded for now.
+// Additionally, status information is silently discarded for now.
 func ReadLine(scanner *bufio.Scanner) (cmd string, params string, err error) {
 	var line string
 	for {
@@ -41,7 +43,7 @@ func ReadLine(scanner *bufio.Scanner) (cmd string, params string, err error) {
 		}
 	}
 
-	// Part before first whitespace is a command. Everything after first whitespace is paramters.
+	// Part before first whitespace is a command. Everything after first whitespace is parameters.
 	parts := strings.SplitN(line, " ", 2)
 
 	// If there is no parameters... (huh!?)
@@ -102,6 +104,8 @@ func WriteData(pipe io.Writer, input []byte) error {
 	return nil
 }
 
+// WriteDataReader is similar to WriteData but sends data from input Reader
+// until EOF.
 func WriteDataReader(pipe io.Writer, input io.Reader) error {
 	chunkLen := MaxLineLen - 3 // 3 is for 'D ' and line feed.
 	buf := make([]byte, chunkLen)

@@ -172,7 +172,7 @@ func Serve(callbacks Callbacks, customGreeting string) error {
 			return err
 		}
 
-		common.WriteLine(pipe, "D", pass)
+		common.WriteData(pipe, []byte(pass)) // Server code will take care of I/O errors.
 		return nil
 	}
 	info.Handlers["CONFIRM"] = func(pipe io.ReadWriter, state interface{}, _ string) *common.Error {
@@ -203,11 +203,7 @@ func Serve(callbacks Callbacks, customGreeting string) error {
 			}
 		}
 
-		err := callbacks.Msg(*state.(*Settings))
-		if err != nil {
-			return err
-		}
-		return nil
+		return callbacks.Msg(*state.(*Settings))
 	}
 
 	err := server.ServeStdin(info)

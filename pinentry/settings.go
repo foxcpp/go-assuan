@@ -4,6 +4,7 @@ import "time"
 
 type Options struct {
 	Grab                bool
+	AllowExtPasswdCache bool
 	Display             string
 	TTYType             string
 	TTYName             string
@@ -14,7 +15,6 @@ type Options struct {
 	TouchFile           string
 	ParentWID           string
 	InvisibleChar       string
-	AllowExtPasswdCache bool
 }
 
 // Settings struct contains options for pinentry prompt.

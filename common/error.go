@@ -13,7 +13,10 @@ const (
 	errCodeMask = 65535
 )
 
+// ErrorCode - error code as defined by Assuan protocol.
 type ErrorCode uint16
+
+// ErrorSource - error source as defined by Assuan protocol.
 type ErrorSource uint8
 
 // Error is used to present errors returned by server.
