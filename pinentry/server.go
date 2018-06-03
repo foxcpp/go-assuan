@@ -129,6 +129,11 @@ func setOpt(state interface{}, key string, val string) *common.Error {
 	}
 }
 
+func resetState(_ io.ReadWriter, state interface{}, params string) *common.Error {
+	*state.(*Settings) = Settings{}
+	return nil
+}
+
 var ProtoInfo = server.ProtoInfo{
 	Greeting: "go-assuan pinentry",
 	Handlers: map[string]server.CommandHandler{
@@ -143,6 +148,7 @@ var ProtoInfo = server.ProtoInfo{
 		"SETQUALITYBAR":  setQualityBar,
 		"SETTITLE":       setTitle,
 		"SETTIMEOUT":     setTimeout,
+		"RESET":          resetState,
 	},
 	Help: map[string][]string{}, // TODO
 	GetDefaultState: func() interface{} {
