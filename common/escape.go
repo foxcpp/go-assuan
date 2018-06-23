@@ -28,6 +28,6 @@ Ref.: https//www.gnupg.org/documentation/manuals/assuan/Client-requests.html
 */
 func unescapeParameters(encoded string) (string, error) {
 	// Percent-encoding used in Assuan is same as percent-encoding used in
-	// query part of URL.
-	return url.QueryUnescape(encoded)
+	// path part of URL.
+	return url.PathUnescape(encoded)
 }
