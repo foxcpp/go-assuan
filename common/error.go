@@ -31,6 +31,22 @@ func (e Error) Error() string {
 	return e.SrcName + ": " + e.Message
 }
 
+// WriteError converts arbitrary error object to protocol error with Assuan Write Error code.
+func WriteError(err error) *Error {
+	return &Error{
+		Src: ErrSrcAssuan, Code: ErrAssWriteError,
+		SrcName: "assuan", Message: err.Error(),
+	}
+}
+
+// WriteError converts arbitrary error object to protocol error with Assuan Read Error code.
+func ReadError(err error) *Error {
+	return &Error{
+		Src: ErrSrcAssuan, Code: ErrAssReadError,
+		SrcName: "assuan", Message: err.Error(),
+	}
+}
+
 var errParamsRegex = regexp.MustCompile(`^(\d{1,10}) ([\w ]+)(?:<([\w ]+)>)?$`)
 
 func mapSource(src string) string {

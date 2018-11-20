@@ -14,7 +14,9 @@ import (
 // state object is useful to store arbitrary data between transactions in
 // single connection, it initialized from object returned by ProtoInfo.GetDefaultState.
 //
-type CommandHandler func(pipe *common.Pipe, state interface{}, params string) *common.Error
+// Handler can report two kinds of errors: Protocol errors and "other" errors.
+// First will be just sent to client, second will terminate session (you want to report I/O errors this way).
+type CommandHandler func(pipe *common.Pipe, state interface{}, params string) (*common.Error, error)
 
 // ProtoInfo describes how to handle commands sent from client on server.
 // Usually there is only one instance of this structure per protocol (i.e. in global variable).
@@ -65,39 +67,68 @@ func Serve(stream io.ReadWriter, proto ProtoInfo) error {
 
 		switch cmd {
 		case "BYE":
-			pipe.WriteLine("OK", "")
+			if err := pipe.WriteLine("OK", ""); err != nil {
+				Logger.Println("... IO error, dropping session:", err)
+				return err
+			}
 			Logger.Println("Session finished")
 		case "NOP":
-			pipe.WriteLine("OK", "")
+			if err := pipe.WriteLine("OK", ""); err != nil {
+				Logger.Println("... IO error, dropping session:", err)
+				return err
+			}
 		case "RESET":
-			resetCmd(&pipe, &state, proto)
+			if err := resetCmd(&pipe, &state, proto); err != nil {
+				Logger.Println("... IO error, dropping session:", err)
+				return err
+			}
 		case "OPTION":
-			optionCmd(&pipe, state, proto, params)
+			if err := optionCmd(&pipe, state, proto, params); err != nil {
+				Logger.Println("... IO error, dropping session:", err)
+				return err
+			}
 		case "HELP":
-			helpCmd(&pipe, proto, params)
+			if err := helpCmd(&pipe, proto, params); err != nil {
+				Logger.Println("... IO error, dropping session:", err)
+				return err
+			}
 		default:
 			Logger.Println("Protocol command received:", cmd)
 			hndlr, prs := proto.Handlers[cmd]
 			if !prs {
 				Logger.Println("... unknown command:", cmd)
-				pipe.WriteError(common.Error{
+				if err := pipe.WriteError(common.Error{
 					Src: common.ErrSrcAssuan, Code: common.ErrAssUnknownCmd,
 					SrcName: "assuan", Message: "unknown IPC command",
-				})
+				}); err != nil {
+					Logger.Println("... IO error, dropping session:", err)
+					return err
+				}
 				continue
 			}
 
-			if err := hndlr(&pipe, state, params); err != nil {
+			perr, err := hndlr(&pipe, state, params)
+			if err != nil {
 				Logger.Println("... handler error:", err)
-				pipe.WriteError(*err)
+				return err
+			}
+			if perr != nil {
+				Logger.Println("... handler error:", perr)
+				if err := pipe.WriteError(*perr); err != nil {
+					Logger.Println("... IO error, dropping session:", err)
+					return err
+				}
 			} else {
-				pipe.WriteLine("OK", "")
+				if err := pipe.WriteLine("OK", ""); err != nil {
+					Logger.Println("... IO error, dropping session:", err)
+					return err
+				}
 			}
 		}
 	}
 }
 
-func helpCmd(pipe *common.Pipe, proto ProtoInfo, params string) {
+func helpCmd(pipe *common.Pipe, proto ProtoInfo, params string) error {
 	Logger.Println("Help request")
 
 	if len(params) != 0 {
@@ -105,66 +136,98 @@ func helpCmd(pipe *common.Pipe, proto ProtoInfo, params string) {
 		helpStrs, prs := proto.Help[params]
 		if !prs {
 			Logger.Println("Help requested for unknown command:", params)
-			pipe.WriteError(common.Error{
+			if err := pipe.WriteError(common.Error{
 				Src: common.ErrSrcAssuan, Code: common.ErrNotFound,
 				SrcName: "assuan", Message: "not found",
-			})
+			}); err != nil {
+				return err
+			}
 		} else {
 			for _, helpStr := range helpStrs {
-				pipe.WriteComment(helpStr)
+				if err := pipe.WriteComment(helpStr); err != nil {
+					return err
+				}
 			}
-			pipe.WriteLine("OK", "")
+			if err := pipe.WriteLine("OK", ""); err != nil {
+				return err
+			}
 		}
 	} else {
 		// Just HELP, print commands.
 		for _, cmd := range [8]string{"NOP", "OPTION", "CANCEL", "BYE", "RESET", "END", "HELP"} {
-			pipe.WriteComment(cmd)
+			if err := pipe.WriteComment(cmd); err != nil {
+				return err
+			}
 		}
 		for k := range proto.Handlers {
-			pipe.WriteComment(k)
+			if err := pipe.WriteComment(k); err != nil {
+				return err
+			}
 		}
-		pipe.WriteLine("OK", "")
+		if err := pipe.WriteLine("OK", ""); err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
-func resetCmd(pipe *common.Pipe, state *interface{}, proto ProtoInfo) {
+func resetCmd(pipe *common.Pipe, state *interface{}, proto ProtoInfo) error {
 	Logger.Println("Session reset")
 	if hndlr, prs := proto.Handlers["RESET"]; prs {
-		err := hndlr(pipe, *state, "")
+		perr, err := hndlr(pipe, *state, "")
 		if err != nil {
-			pipe.WriteError(*err)
+			return err
+		}
+		if perr != nil {
+			if err := pipe.WriteError(*perr); err != nil {
+				return err
+			}
 		} else {
-			pipe.WriteLine("OK", "")
+			if err := pipe.WriteLine("OK", ""); err != nil {
+				return err
+			}
 		}
 	} else {
 		// Default RESET handler: Reset context to null.
 		*state = nil
-		pipe.WriteLine("OK", "")
+		if err := pipe.WriteLine("OK", ""); err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
-func optionCmd(pipe *common.Pipe, state interface{}, proto ProtoInfo, params string) {
+func optionCmd(pipe *common.Pipe, state interface{}, proto ProtoInfo, params string) error {
 	Logger.Println("Option set request:", params)
 	if proto.SetOption == nil {
 		Logger.Println("... no options supported in this protocol")
-		pipe.WriteError(common.Error{
+		if err := pipe.WriteError(common.Error{
 			Src: common.ErrSrcAssuan, Code: common.ErrNotImplemented,
 			SrcName: "assuan", Message: "not implemented",
-		})
-		return
+		}); err != nil {
+			return err
+		}
+		return nil
 	}
 	key, value, err := splitOption(params)
 	if err != nil {
 		Logger.Println("... malformed request: ", err)
-		pipe.WriteError(*err)
-		return
+		if err := pipe.WriteError(*err); err != nil {
+			return err
+		}
+		return nil
 	}
 	err = proto.SetOption(state, key, value)
 	if err != nil {
 		Logger.Println("... invalid option:", err)
-		pipe.WriteError(*err)
+		if err := pipe.WriteError(*err); err != nil {
+			return err
+		}
 	}
-	pipe.WriteLine("OK", "")
+	if err := pipe.WriteLine("OK", ""); err != nil {
+		return err
+	}
+	return nil
 }
 
 // ServeStdin is same as Serve but uses stdin and stdout as communication channel.
@@ -184,12 +247,16 @@ func ServeNet(listener Listener, proto ProtoInfo) error {
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			return err
+			Logger.Println("Listener fail:", err)
+			continue
 		}
 		Logger.Println("Received remote connection on", conn.LocalAddr(), "from", conn.RemoteAddr())
 		go func() {
 			defer conn.Close()
-			Serve(conn, proto)
+			if err := Serve(conn, proto); err != nil {
+				Logger.Println("Serve fail:", err)
+			}
 		}()
 	}
+	return nil
 }
