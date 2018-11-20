@@ -28,7 +28,7 @@ func TestPipe_ReadLine(t *testing.T) {
 		}
 	})
 	t.Run("too long line", func(t *testing.T) {
-		sample := "CMD " + strings.Repeat("F", common.MaxLineLen + 20)
+		sample := "CMD " + strings.Repeat("F", common.MaxLineLen+20)
 		rdr := strings.NewReader(sample)
 		pipe := common.NewPipe(rdr, nil)
 		defer pipe.Close()

@@ -117,7 +117,7 @@ func helpCmd(pipe *common.Pipe, proto ProtoInfo, params string) {
 		}
 	} else {
 		// Just HELP, print commands.
-		for _, cmd :=  range [8]string{"NOP", "OPTION", "CANCEL", "BYE", "RESET", "END", "HELP"} {
+		for _, cmd := range [8]string{"NOP", "OPTION", "CANCEL", "BYE", "RESET", "END", "HELP"} {
 			pipe.WriteComment(cmd)
 		}
 		for k := range proto.Handlers {

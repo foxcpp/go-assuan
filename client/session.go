@@ -23,7 +23,7 @@ type Session struct {
 // Init initiates session using passed Reader/Writer.
 func Init(stream io.ReadWriter) (*Session, error) {
 	Logger.Println("Starting session...")
-	ses := &Session{common.New(stream), }
+	ses := &Session{common.New(stream)}
 
 	// Take server's OK from pipe.
 	_, _, err := ses.Pipe.ReadLine()

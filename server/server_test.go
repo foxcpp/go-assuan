@@ -3,7 +3,6 @@ package server_test
 import (
 	"bufio"
 	"fmt"
-	"io"
 	"os"
 
 	"github.com/foxcpp/go-assuan/common"
@@ -14,22 +13,22 @@ type State struct {
 	desc string
 }
 
-func setdesc(_ io.ReadWriter, state interface{}, params string) *common.Error {
+func setdesc(_ *common.Pipe, state interface{}, params string) *common.Error {
 	state.(*State).desc = params
 	return nil
 }
 
-func getpin(pipe io.ReadWriter, state interface{}, _ string) *common.Error {
+func getpin(pipe *common.Pipe, state interface{}, _ string) *common.Error {
 	s := bufio.NewScanner(os.Stdout)
 	fmt.Println(state.(*State).desc)
 	fmt.Print("Enter PIN: ")
 	if ok := s.Scan(); !ok {
 		return &common.Error{
-			common.ErrSrcUnknown, common.ErrGeneral,
-			"system", "I/O error",
+			Src: common.ErrSrcUnknown, Code: common.ErrGeneral,
+			SrcName: "system", Message: "I/O error",
 		}
 	}
-	common.WriteData(pipe, s.Bytes())
+	pipe.WriteData(s.Bytes())
 	return nil
 }
 

@@ -92,6 +92,7 @@ OK`)
 type DummmyMarhshaller struct {
 	s string
 }
+
 func (dm DummmyMarhshaller) MarshalText() ([]byte, error) {
 	return []byte(dm.s), nil
 }

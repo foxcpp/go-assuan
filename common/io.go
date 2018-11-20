@@ -24,18 +24,18 @@ type ReadWriter struct {
 // Pipe is a wrapper for Assuan command stream.
 type Pipe struct {
 	scnr *bufio.Scanner
-	r io.Reader
-	w io.Writer
+	r    io.Reader
+	w    io.Writer
 }
 
 func New(stream io.ReadWriter) Pipe {
-	p := Pipe{bufio.NewScanner(stream),stream, stream}
+	p := Pipe{bufio.NewScanner(stream), stream, stream}
 	p.scnr.Buffer(make([]byte, 0, MaxLineLen), MaxLineLen)
 	return p
 }
 
 func NewPipe(in io.Reader, out io.Writer) Pipe {
-	p := Pipe{bufio.NewScanner(in),in, out}
+	p := Pipe{bufio.NewScanner(in), in, out}
 	p.scnr.Buffer(make([]byte, 0, MaxLineLen), MaxLineLen)
 	return p
 }
@@ -66,7 +66,7 @@ func (p *Pipe) RestrictInputLen(restrict bool) {
 //
 // Empty lines and lines starting with # are ignored as specified by protocol.
 // Additionally, status information is silently discarded for now.
-func (p* Pipe) ReadLine() (cmd string, params string, err error) {
+func (p *Pipe) ReadLine() (cmd string, params string, err error) {
 	var line string
 	for {
 		if ok := p.scnr.Scan(); !ok {
