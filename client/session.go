@@ -1,7 +1,7 @@
 package client
 
 import (
-	"bufio"
+	"encoding"
 	"errors"
 	"io"
 	"os/exec"
@@ -12,13 +12,12 @@ import (
 // Session struct is a wrapper which represents an alive connection between
 // client and server.
 //
-// In Assuan protocol roles of peers after handleshake is not same, for this
+// In Assuan protocol roles of peers after handshake is not same, for this
 // reason there is no generic Session object that will work for both client and
-// server. In pracicular, client.Session (the struct you are looking at)
+// server. In particular, client.Session (the struct you are looking at)
 // represents client side of connection.
 type Session struct {
-	Pipe    io.ReadWriteCloser
-	Scanner *bufio.Scanner
+	Pipe common.Pipe
 }
 
 // ReadWriteCloser - a bit of glue between io.ReadCloser and io.WriteCloser.
@@ -36,39 +35,13 @@ func (rwc ReadWriteCloser) Close() error {
 	return rwc.WriteCloser.Close()
 }
 
-// Implements no-op Close() function in additional to holding reference to
-// Reader and Writer.
-type nopCloser struct {
-	io.ReadWriter
-}
-
-func (clsr nopCloser) Close() error {
-	return nil
-}
-
-// InitNopClose initiates session using passed Reader/Writer and NOP closer.
-func InitNopClose(pipe io.ReadWriter) (*Session, error) {
-	ses := &Session{nopCloser{pipe}, bufio.NewScanner(pipe)}
-	ses.Scanner.Buffer(make([]byte, common.MaxLineLen), common.MaxLineLen)
-
-	// Take server's OK from pipe.
-	_, _, err := common.ReadLine(ses.Scanner)
-	if err != nil {
-		Logger.Println("... I/O error:", err)
-		return nil, err
-	}
-
-	return ses, nil
-}
-
 // Init initiates session using passed Reader/Writer.
-func Init(pipe io.ReadWriteCloser) (*Session, error) {
+func Init(stream io.ReadWriter) (*Session, error) {
 	Logger.Println("Starting session...")
-	ses := &Session{pipe, bufio.NewScanner(pipe)}
-	ses.Scanner.Buffer(make([]byte, common.MaxLineLen), common.MaxLineLen)
+	ses := &Session{common.New(stream), }
 
 	// Take server's OK from pipe.
-	_, _, err := common.ReadLine(ses.Scanner)
+	_, _, err := ses.Pipe.ReadLine()
 	if err != nil {
 		Logger.Println("... I/O error:", err)
 		return nil, err
@@ -79,6 +52,9 @@ func Init(pipe io.ReadWriteCloser) (*Session, error) {
 
 // InitCmd initiates session using command's stdin and stdout as a I/O channel.
 // cmd.Start() will be done by this function and should not be done before.
+//
+// Warning: It's caller's responsibility to close pipes set in exec.Cmd
+// object (cmd.Stdin, cmd.Stdout).
 func InitCmd(cmd *exec.Cmd) (*Session, error) {
 	// Errors generally should not happen here but let's be pedantic because we are library.
 	stdout, err := cmd.StdoutPipe()
@@ -95,13 +71,17 @@ func InitCmd(cmd *exec.Cmd) (*Session, error) {
 		return nil, err
 	}
 
-	return Init(ReadWriteCloser{stdout, stdin})
+	ses, err := Init(ReadWriteCloser{stdout, stdin})
+	if err != nil {
+		return nil, err
+	}
+	return ses, nil
 }
 
 // Close sends BYE and closes underlying pipe.
 func (ses *Session) Close() error {
 	Logger.Println("Closing session (sending BYE)...")
-	if err := common.WriteLine(ses.Pipe, "BYE", ""); err != nil {
+	if err := ses.Pipe.WriteLine("BYE", ""); err != nil {
 		Logger.Println("... I/O error:", err)
 		return err
 	}
@@ -115,11 +95,11 @@ func (ses *Session) Close() error {
 // connection.
 func (ses *Session) Reset() error {
 	Logger.Println("Resetting session...")
-	if err := common.WriteLine(ses.Pipe, "RESET", ""); err != nil {
+	if err := ses.Pipe.WriteLine("RESET", ""); err != nil {
 		return err
 	}
 	// Take server's OK from pipe.
-	ok, params, err := common.ReadLine(ses.Scanner)
+	ok, params, err := ses.Pipe.ReadLine()
 	if err != nil {
 		Logger.Println("... I/O error:", err)
 		return err
@@ -137,14 +117,14 @@ func (ses *Session) Reset() error {
 // SimpleCmd sends command with specified parameters and reads data sent by server if any.
 func (ses *Session) SimpleCmd(cmd string, params string) (data []byte, err error) {
 	Logger.Println("Sending command:", cmd, params)
-	err = common.WriteLine(ses.Pipe, cmd, params)
+	err = ses.Pipe.WriteLine(cmd, params)
 	if err != nil {
 		Logger.Println("... I/O error:", err)
 		return []byte{}, err
 	}
 
 	for {
-		scmd, sparams, err := common.ReadLine(ses.Scanner)
+		scmd, sparams, err := ses.Pipe.ReadLine()
 		if err != nil {
 			Logger.Println("... I/O error:", err)
 			return []byte{}, err
@@ -165,50 +145,59 @@ func (ses *Session) SimpleCmd(cmd string, params string) (data []byte, err error
 
 // Transact sends command with specified params and uses byte arrays in data
 // argument to answer server's inquiries. Values in data can be either []byte
-// or pointer to implementer of io.Reader.
+// or pointer to implementer of io.Reader or encoding.TextMarhshaller.
 func (ses *Session) Transact(cmd string, params string, data map[string]interface{}) (rdata []byte, err error) {
 	Logger.Println("Initiating transaction:", cmd, params)
-	err = common.WriteLine(ses.Pipe, cmd, params)
+	err = ses.Pipe.WriteLine(cmd, params)
 	if err != nil {
-		return []byte{}, err
+		return nil, err
 	}
 
 	for {
-		scmd, sparams, err := common.ReadLine(ses.Scanner)
+		scmd, sparams, err := ses.Pipe.ReadLine()
 		if err != nil {
-			return []byte{}, err
+			return nil, err
 		}
 
 		if scmd == "INQUIRE" {
 			inquireResp, prs := data[sparams]
 			if !prs {
 				Logger.Println("... unknown request:", sparams)
-				if err := common.WriteLine(ses.Pipe, "CAN", ""); err != nil {
+				if err := ses.Pipe.WriteLine("CAN", ""); err != nil {
 					return nil, err
 				}
 
 				// We asked for FOO but we don't have FOO.
-				return []byte{}, errors.New("missing data with keyword " + sparams)
+				return nil, errors.New("missing data with keyword " + sparams)
 			}
 
 			switch inquireResp.(type) {
 			case []byte:
-				if err := common.WriteData(ses.Pipe, inquireResp.([]byte)); err != nil {
+				if err := ses.Pipe.WriteData(inquireResp.([]byte)); err != nil {
 					Logger.Println("... I/O error:", err)
-					return []byte{}, err
+					return nil, err
 				}
 			case io.Reader:
-				if err := common.WriteDataReader(ses.Pipe, inquireResp.(io.Reader)); err != nil {
+				if err := ses.Pipe.WriteDataReader(inquireResp.(io.Reader)); err != nil {
 					Logger.Println("... I/O error:", err)
-					return []byte{}, err
+					return nil, err
+				}
+			case encoding.TextMarshaler:
+				marhshalled, err := inquireResp.(encoding.TextMarshaler).MarshalText()
+				if err != nil {
+					return nil, err
+				}
+				if err := ses.Pipe.WriteData(marhshalled); err != nil {
+					Logger.Println("... I/O error:", err)
+					return nil, err
 				}
 			default:
 				return nil, errors.New("invalid type in data map value")
 			}
 
-			if err := common.WriteLine(ses.Pipe, "END", ""); err != nil {
+			if err := ses.Pipe.WriteLine("END", ""); err != nil {
 				Logger.Println("... I/O error:", err)
-				return []byte{}, err
+				return nil, err
 			}
 		}
 
@@ -230,13 +219,13 @@ func (ses *Session) Transact(cmd string, params string, data map[string]interfac
 // Option sets options for connections.
 func (ses *Session) Option(name string, value string) error {
 	Logger.Println("Setting option", name, "to", value+"...")
-	err := common.WriteLine(ses.Pipe, "OPTION", name+" = "+value)
+	err := ses.Pipe.WriteLine("OPTION", name+" = "+value)
 	if err != nil {
 		Logger.Println("... I/O error: ", err)
 		return err
 	}
 
-	cmd, sparams, err := common.ReadLine(ses.Scanner)
+	cmd, sparams, err := ses.Pipe.ReadLine()
 	if err != nil {
 		Logger.Println("... I/O error: ", err)
 		return err

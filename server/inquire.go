@@ -1,9 +1,6 @@
 package server
 
 import (
-	"bufio"
-	"io"
-
 	"github.com/foxcpp/go-assuan/common"
 )
 
@@ -27,20 +24,20 @@ import (
 //	 if err != nil {
 //	     if e, ok := err.(common.Error); ok {
 //	  	   // Protocol error, report it to other peer (client).
-//	         common.WriteError(pipe, e)
+//	       pipe.WriteError(e)
 //	     } else {
 //	  	   // Internal error, do something else...
 //	     }
 //	 }
-func Inquire(scnr *bufio.Scanner, pipe io.Writer, keywords []string) (res map[string][]byte, err error) {
+func Inquire(pipe *common.Pipe, keywords []string) (res map[string][]byte, err error) {
 	Logger.Println("Sending inquire group:", keywords)
 	for _, keyword := range keywords {
-		if err := common.WriteLine(pipe, "INQUIRE", keyword); err != nil {
+		if err := pipe.WriteLine("INQUIRE", keyword); err != nil {
 			Logger.Println("... I/O error:", err)
 			return nil, err
 		}
 
-		data, err := common.ReadData(scnr)
+		data, err := pipe.ReadData()
 		if err != nil {
 			Logger.Println("... I/O error:", err)
 			return nil, err

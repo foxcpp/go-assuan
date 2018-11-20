@@ -21,21 +21,41 @@ type ReadWriter struct {
 	io.Writer
 }
 
+// Pipe is a wrapper for Assuan command stream.
+type Pipe struct {
+	scnr *bufio.Scanner
+	r io.Reader
+	w io.Writer
+}
+
+func New(stream io.ReadWriter) Pipe {
+	return Pipe{bufio.NewScanner(stream),stream, stream}
+}
+
+func NewPipe(in io.Reader, out io.Writer) Pipe {
+	return Pipe{bufio.NewScanner(in),in, out}
+}
+
+func (p *Pipe) Close() error {
+	// Reserved for future use, no-op now.
+	return nil
+}
+
 // ReadLine reads raw request/response in following format: command <parameters>
 //
 // Empty lines and lines starting with # are ignored as specified by protocol.
 // Additionally, status information is silently discarded for now.
-func ReadLine(scanner *bufio.Scanner) (cmd string, params string, err error) {
+func (p* Pipe) ReadLine() (cmd string, params string, err error) {
 	var line string
 	for {
-		if ok := scanner.Scan(); !ok {
-			err := scanner.Err()
+		if ok := p.scnr.Scan(); !ok {
+			err := p.scnr.Err()
 			if err == nil {
 				err = io.EOF
 			}
 			return "", "", err
 		}
-		line = scanner.Text()
+		line = p.scnr.Text()
 
 		// We got something that looks like a message. Let's parse it.
 		if !strings.HasPrefix(line, "#") && !strings.HasPrefix(line, "S ") && len(strings.TrimSpace(line)) != 0 {
@@ -63,9 +83,9 @@ func ReadLine(scanner *bufio.Scanner) (cmd string, params string, err error) {
 	return strings.ToUpper(parts[0]), params, nil
 }
 
-// WriteLine writes request/response to underlying pipe.
+// WriteLine writes request/response to pipe.
 // Contents of params is escaped according to requirements of Assuan protocol.
-func WriteLine(pipe io.Writer, cmd string, params string) error {
+func (p *Pipe) WriteLine(cmd string, params string) error {
 	if len(cmd)+len(params)+2 > MaxLineLen {
 		Logger.Println("Refusing to send too long command")
 		// 2 is for whitespace after command and LF
@@ -75,7 +95,7 @@ func WriteLine(pipe io.Writer, cmd string, params string) error {
 	Logger.Println(">", cmd)
 
 	line := []byte(strings.ToUpper(cmd) + " " + escapeParameters(params) + "\n")
-	_, err := pipe.Write(line)
+	_, err := p.w.Write(line)
 	return err
 }
 
@@ -89,7 +109,7 @@ func min(a, b int) int {
 // WriteData sends passed byte slice using one or more D commands.
 // Note: Error may occur even after some data is written so it's better
 // to just CAN transaction after WriteData error.
-func WriteData(pipe io.Writer, input []byte) error {
+func (p *Pipe) WriteData(input []byte) error {
 	encoded := []byte(escapeParameters(string(input)))
 	chunkLen := MaxLineLen - 3 // 3 is for 'D ' and line feed.
 	for i := 0; i < len(encoded); i += chunkLen {
@@ -97,7 +117,7 @@ func WriteData(pipe io.Writer, input []byte) error {
 		chunk = append([]byte{'D', ' '}, chunk...)
 		chunk = append(chunk, '\n')
 
-		if _, err := pipe.Write(chunk); err != nil {
+		if _, err := p.w.Write(chunk); err != nil {
 			return err
 		}
 	}
@@ -106,7 +126,7 @@ func WriteData(pipe io.Writer, input []byte) error {
 
 // WriteDataReader is similar to WriteData but sends data from input Reader
 // until EOF.
-func WriteDataReader(pipe io.Writer, input io.Reader) error {
+func (p *Pipe) WriteDataReader(input io.Reader) error {
 	chunkLen := MaxLineLen - 3 // 3 is for 'D ' and line feed.
 	buf := make([]byte, chunkLen)
 
@@ -122,16 +142,16 @@ func WriteDataReader(pipe io.Writer, input io.Reader) error {
 		chunk := []byte(escapeParameters(string(buf[:n])))
 		chunk = append([]byte{'D', ' '}, chunk...)
 		chunk = append(chunk, '\n')
-		if _, err := pipe.Write(chunk); err != nil {
+		if _, err := p.w.Write(chunk); err != nil {
 			return err
 		}
 	}
 }
 
 // ReadData reads sequence of D commands and joins data together.
-func ReadData(scanner *bufio.Scanner) (data []byte, err error) {
+func (p *Pipe) ReadData() (data []byte, err error) {
 	for {
-		cmd, chunk, err := ReadLine(scanner)
+		cmd, chunk, err := p.ReadLine()
 		if err != nil {
 			return nil, err
 		}
@@ -141,11 +161,11 @@ func ReadData(scanner *bufio.Scanner) (data []byte, err error) {
 		}
 
 		if cmd == "CAN" {
-			return nil, Error{ErrSrcAssuan, ErrUnexpected, "assuan", "IPC call has been cancelled"}
+			return nil, Error{Src: ErrSrcAssuan, Code: ErrUnexpected, SrcName: "assuan", Message: "IPC call has been cancelled"}
 		}
 
 		if cmd != "D" {
-			return nil, Error{ErrSrcAssuan, ErrUnexpected, "assuan", "unexpected IPC command"}
+			return nil, Error{Src: ErrSrcAssuan, Code: ErrUnexpected, SrcName: "assuan", Message: "unexpected IPC command"}
 		}
 
 		unescaped, err := unescapeParameters(chunk)
@@ -158,10 +178,11 @@ func ReadData(scanner *bufio.Scanner) (data []byte, err error) {
 }
 
 // WriteComment is special case of WriteLine. "Command" is # and text is parameter.
-func WriteComment(pipe io.Writer, text string) error {
-	return WriteLine(pipe, "#", text)
+func (p *Pipe) WriteComment(text string) error {
+	return p.WriteLine("#", text)
 }
 
-func WriteError(pipe io.Writer, err Error) error {
-	return WriteLine(pipe, "ERR", fmt.Sprintf("%d %s <%s>", MakeErrCode(err.Src, err.Code), err.Message, err.SrcName))
+// WriteError is a special case of WriteLine. It writes command.s
+func (p *Pipe) WriteError(err Error) error {
+	return p.WriteLine("ERR", fmt.Sprintf("%d %s <%s>", MakeErrCode(err.Src, err.Code), err.Message, err.SrcName))
 }

@@ -1,6 +1,7 @@
 package pinentry
 
 import (
+	"io"
 	"os/exec"
 	"strconv"
 	"time"
@@ -16,6 +17,8 @@ type Client struct {
 	qualityBar bool
 }
 
+// Launch starts pinentry binary found in directories from PATH envvar and creates
+// pinentry.Client for interaction with it.
 func Launch() (*Client, error) {
 	cmd := exec.Command("pinentry")
 
@@ -28,6 +31,8 @@ func Launch() (*Client, error) {
 	return c, nil
 }
 
+// Launch starts pinentry binary specified by passed path and creates
+// pinentry.Client for interaction with it.
 func LaunchCustom(path string) (Client, error) {
 	cmd := exec.Command(path)
 
@@ -38,6 +43,16 @@ func LaunchCustom(path string) (Client, error) {
 		return Client{}, err
 	}
 	return c, nil
+}
+
+func New(stream io.ReadWriter) (Client, error) {
+	c := Client{}
+	var err error
+	c.Session, err = assuan.Init(stream)
+	if err != nil {
+		return Client{}, err
+	}
+	return c, err
 }
 
 func (c *Client) Shutdown() {
@@ -150,11 +165,12 @@ func (c *Client) getPINWithQualBar() (string, error) {
 
 	defer func() { c.qualityBar = false }()
 
-	common.WriteLine(c.Session.Pipe, "GETPIN", "")
-
-	scnr := c.Session.Scanner
+	pipe := c.Session.Pipe
+	if err := pipe.WriteLine("GETPIN", ""); err != nil {
+		return "", err
+	}
 	for {
-		cmd, params, err := common.ReadLine(scnr)
+		cmd, params, err := pipe.ReadLine()
 		if err != nil {
 			return "", err
 		}
@@ -163,7 +179,9 @@ func (c *Client) getPINWithQualBar() (string, error) {
 			// We got password.
 
 			// Take OK from pipe.
-			common.ReadLine(scnr)
+			if _, _, err := pipe.ReadLine(); err != nil {
+				return "", err
+			}
 
 			return params, nil
 		}
@@ -175,14 +193,22 @@ func (c *Client) getPINWithQualBar() (string, error) {
 			passwd := params[8:]
 
 			if c.current.PasswordQuality == nil {
-				common.WriteLine(c.Session.Pipe, "D", "0")
-				common.WriteLine(c.Session.Pipe, "END", "")
+				if err := pipe.WriteLine("D", "0"); err != nil {
+					return "", err
+				}
+				if err := pipe.WriteLine("END", ""); err != nil {
+					return "", err
+				}
 				continue
 			}
 
 			quality := c.current.PasswordQuality(passwd)
-			common.WriteLine(c.Session.Pipe, "D", strconv.Itoa(quality))
-			common.WriteLine(c.Session.Pipe, "END", "")
+			if err := pipe.WriteLine("D", strconv.Itoa(quality)); err != nil {
+				return "", err
+			}
+			if err := pipe.WriteLine("END", ""); err != nil {
+				return "", err
+			}
 		}
 
 		if cmd == "ERR" {

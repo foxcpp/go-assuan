@@ -67,7 +67,7 @@ func DecodeErrCmd(params string) error {
 
 	srcCode, errCode := SplitErrCode(code)
 
-	return Error{srcCode, errCode, src, desc}
+	return Error{Src: srcCode, Code: errCode, SrcName: src, Message: desc}
 }
 
 func SplitErrCode(code int) (ErrorSource, ErrorCode) {

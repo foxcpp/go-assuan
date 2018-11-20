@@ -19,7 +19,7 @@ func ExampleSession() {
 	// data []byte = "info:1:1%0Apub:2499BEB8B47B0235009A5F0AEE8384B0561A25AF:..."
 
 	// More complex transaction: send key to keyserver.
-	ses.Transact("KS_PUT", "", map[string][]byte{
+	ses.Transact("KS_PUT", "", map[string]interface{}{
 		"KEYBLOCK":      {},
 		"KEYBLOCK_INFO": {},
 	})
