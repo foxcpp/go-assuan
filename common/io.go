@@ -29,16 +29,37 @@ type Pipe struct {
 }
 
 func New(stream io.ReadWriter) Pipe {
-	return Pipe{bufio.NewScanner(stream),stream, stream}
+	p := Pipe{bufio.NewScanner(stream),stream, stream}
+	p.scnr.Buffer(make([]byte, 0, MaxLineLen), MaxLineLen)
+	return p
 }
 
 func NewPipe(in io.Reader, out io.Writer) Pipe {
-	return Pipe{bufio.NewScanner(in),in, out}
+	p := Pipe{bufio.NewScanner(in),in, out}
+	p.scnr.Buffer(make([]byte, 0, MaxLineLen), MaxLineLen)
+	return p
 }
 
 func (p *Pipe) Close() error {
 	// Reserved for future use, no-op now.
 	return nil
+}
+
+// RestrictInputLen controls how lines longer than MaxLineLen should be handled.
+// By default they will be discarded and error will be returned. You can disable
+// this behavior using RestrictInputLen(false) if implementation you are working
+// with violates this restriction.
+//
+// Note that even with b=false line length will be restricted to
+// bufio.MaxScanTokenSize (64 KiB).
+//
+// This function MUST be called before any I/O, otherwise it will panic.
+func (p *Pipe) RestrictInputLen(restrict bool) {
+	if restrict {
+		p.scnr.Buffer(make([]byte, 0, MaxLineLen), MaxLineLen)
+	} else {
+		p.scnr.Buffer([]byte{}, bufio.MaxScanTokenSize)
+	}
 }
 
 // ReadLine reads raw request/response in following format: command <parameters>
