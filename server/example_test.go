@@ -4,8 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"os"
-	"strings"
-	"testing"
 
 	"github.com/foxcpp/go-assuan/common"
 	"github.com/foxcpp/go-assuan/server"
@@ -54,17 +52,4 @@ func ExampleProtoInfo() {
 		},
 	}
 	server.ServeStdin(pinentry)
-}
-
-func TestInquire(t *testing.T) {
-	sample := `D FOO
-END
-D BAR
-END
-D BAZ
-END
-`
-	pipe := common.NewPipe(strings.NewReader(sample), nil)
-
-	
 }
