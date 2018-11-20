@@ -35,8 +35,8 @@ var errParamsRegex = regexp.MustCompile(`^(\d{1,10}) ([\w ]+)(?:<([\w ]+)>)?$`)
 
 func mapSource(src string) string {
 	// Used for protocol-level errors
-	if src == "user defined source 1" {
-		return "assuan"
+	if strings.ToLower(src) == "user defined source 1" {
+		return "Assuan"
 	}
 	return src
 }
@@ -55,10 +55,10 @@ func DecodeErrCmd(params string) error {
 	if groups == nil {
 		return errors.New("malformed ERR arguments")
 	}
-	codeStr, desc := strings.ToLower(groups[1]), strings.ToLower(groups[2])
+	codeStr, desc := groups[1], strings.TrimSpace(groups[2])
 	src := "unknown source"
 	if len(groups) == 4 {
-		src = mapSource(strings.ToLower(groups[3]))
+		src = mapSource(groups[3])
 	}
 	code, err := strconv.Atoi(codeStr)
 	if err != nil {
