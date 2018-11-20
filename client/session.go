@@ -20,21 +20,6 @@ type Session struct {
 	Pipe common.Pipe
 }
 
-// ReadWriteCloser - a bit of glue between io.ReadCloser and io.WriteCloser.
-type ReadWriteCloser struct {
-	io.ReadCloser
-	io.WriteCloser
-}
-
-// Close closes both io.ReadCloser and io.WriteCloser. Writer will not closed
-// if Reader close failed.
-func (rwc ReadWriteCloser) Close() error {
-	if err := rwc.ReadCloser.Close(); err != nil {
-		return err
-	}
-	return rwc.WriteCloser.Close()
-}
-
 // Init initiates session using passed Reader/Writer.
 func Init(stream io.ReadWriter) (*Session, error) {
 	Logger.Println("Starting session...")
@@ -71,7 +56,7 @@ func InitCmd(cmd *exec.Cmd) (*Session, error) {
 		return nil, err
 	}
 
-	ses, err := Init(ReadWriteCloser{stdout, stdin})
+	ses, err := Init(common.ReadWriter{Reader: stdout, Writer: stdin})
 	if err != nil {
 		return nil, err
 	}
@@ -95,23 +80,8 @@ func (ses *Session) Close() error {
 // connection.
 func (ses *Session) Reset() error {
 	Logger.Println("Resetting session...")
-	if err := ses.Pipe.WriteLine("RESET", ""); err != nil {
-		return err
-	}
-	// Take server's OK from pipe.
-	ok, params, err := ses.Pipe.ReadLine()
-	if err != nil {
-		Logger.Println("... I/O error:", err)
-		return err
-	}
-	if ok == "ERR" {
-		Logger.Println("... Received ERR: ", params)
-		return common.DecodeErrCmd(params)
-	}
-	if ok != "OK" {
-		return errors.New("not 'ok' response")
-	}
-	return nil
+	_, err := ses.SimpleCmd("RESET", "")
+	return err
 }
 
 // SimpleCmd sends command with specified parameters and reads data sent by server if any.
@@ -219,21 +189,6 @@ func (ses *Session) Transact(cmd string, params string, data map[string]interfac
 // Option sets options for connections.
 func (ses *Session) Option(name string, value string) error {
 	Logger.Println("Setting option", name, "to", value+"...")
-	err := ses.Pipe.WriteLine("OPTION", name+" = "+value)
-	if err != nil {
-		Logger.Println("... I/O error: ", err)
-		return err
-	}
-
-	cmd, sparams, err := ses.Pipe.ReadLine()
-	if err != nil {
-		Logger.Println("... I/O error: ", err)
-		return err
-	}
-	if cmd == "ERR" {
-		Logger.Println("... Received ERR: ", sparams)
-		return common.DecodeErrCmd(sparams)
-	}
-
-	return nil
+	_, err := ses.SimpleCmd("OPTION", name+" = "+value)
+	return err
 }

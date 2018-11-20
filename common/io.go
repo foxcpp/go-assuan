@@ -115,7 +115,12 @@ func (p *Pipe) WriteLine(cmd string, params string) error {
 
 	Logger.Println(">", cmd)
 
-	line := []byte(strings.ToUpper(cmd) + " " + escapeParameters(params) + "\n")
+	var line []byte
+	if params != "" {
+		line = []byte(strings.ToUpper(cmd) + " " + escapeParameters(params) + "\n")
+	} else {
+		line = []byte(strings.ToUpper(cmd) + "\n")
+	}
 	_, err := p.w.Write(line)
 	return err
 }
