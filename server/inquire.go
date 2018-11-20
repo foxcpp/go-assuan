@@ -30,6 +30,8 @@ import (
 //	     }
 //	 }
 func Inquire(pipe *common.Pipe, keywords []string) (res map[string][]byte, err error) {
+	res = make(map[string][]byte)
+
 	Logger.Println("Sending inquire group:", keywords)
 	for _, keyword := range keywords {
 		if err := pipe.WriteLine("INQUIRE", keyword); err != nil {
@@ -39,6 +41,16 @@ func Inquire(pipe *common.Pipe, keywords []string) (res map[string][]byte, err e
 
 		data, err := pipe.ReadData()
 		if err != nil {
+			perr, ok := err.(*common.Error)
+
+			if ok {
+				if err := pipe.WriteError(*perr); err != nil {
+					Logger.Println("... I/O error:", err)
+					return nil, err
+				}
+				return nil, err
+			}
+
 			Logger.Println("... I/O error:", err)
 			return nil, err
 		}

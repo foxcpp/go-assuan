@@ -15,58 +15,58 @@ type Callbacks struct {
 	Msg     func(Settings) *common.Error
 }
 
-func setDesc(_ *common.Pipe, state interface{}, params string) (*common.Error, error) {
+func setDesc(_ *common.Pipe, state interface{}, params string) error {
 	state.(*Settings).Desc = params
-	return nil, nil
+	return nil
 }
-func setPrompt(_ *common.Pipe, state interface{}, params string) (*common.Error, error) {
+func setPrompt(_ *common.Pipe, state interface{}, params string) error {
 	state.(*Settings).Prompt = params
-	return nil, nil
+	return nil
 }
-func setRepeat(_ *common.Pipe, state interface{}, params string) (*common.Error, error) {
+func setRepeat(_ *common.Pipe, state interface{}, params string) error {
 	state.(*Settings).RepeatPrompt = params
-	return nil, nil
+	return nil
 }
-func setRepeatError(_ *common.Pipe, state interface{}, params string) (*common.Error, error) {
+func setRepeatError(_ *common.Pipe, state interface{}, params string) error {
 	state.(*Settings).RepeatError = params
-	return nil, nil
+	return nil
 }
-func setError(_ *common.Pipe, state interface{}, params string) (*common.Error, error) {
+func setError(_ *common.Pipe, state interface{}, params string) error {
 	state.(*Settings).Error = params
-	return nil, nil
+	return nil
 }
-func setOk(_ *common.Pipe, state interface{}, params string) (*common.Error, error) {
+func setOk(_ *common.Pipe, state interface{}, params string) error {
 	state.(*Settings).OkBtn = params
-	return nil, nil
+	return nil
 }
-func setNotOk(_ *common.Pipe, state interface{}, params string) (*common.Error, error) {
+func setNotOk(_ *common.Pipe, state interface{}, params string) error {
 	state.(*Settings).NotOkBtn = params
-	return nil, nil
+	return nil
 }
-func setCancel(_ *common.Pipe, state interface{}, params string) (*common.Error, error) {
+func setCancel(_ *common.Pipe, state interface{}, params string) error {
 	state.(*Settings).CancelBtn = params
-	return nil, nil
+	return nil
 }
-func setQualityBar(_ *common.Pipe, state interface{}, params string) (*common.Error, error) {
+func setQualityBar(_ *common.Pipe, state interface{}, params string) error {
 	state.(*Settings).QualityBar = params
-	return nil, nil
+	return nil
 }
-func setTitle(_ *common.Pipe, state interface{}, params string) (*common.Error, error) {
+func setTitle(_ *common.Pipe, state interface{}, params string) error {
 	state.(*Settings).Title = params
-	return nil, nil
+	return nil
 }
-func setTimeout(_ *common.Pipe, state interface{}, params string) (*common.Error, error) {
+func setTimeout(_ *common.Pipe, state interface{}, params string) error {
 	i, err := strconv.Atoi(params)
 	if err != nil {
 		return &common.Error{
 			Src: common.ErrSrcPinentry, Code: common.ErrAssInvValue,
 			SrcName: "pinentry", Message: "invalid timeout value",
-		}, nil
+		}
 	}
 	state.(*Settings).Timeout = time.Duration(i)
-	return nil, nil
+	return nil
 }
-func setOpt(state interface{}, key string, val string) *common.Error {
+func setOpt(state interface{}, key string, val string) error {
 	opts := state.(*Settings)
 
 	if key == "no-grab" {
@@ -128,9 +128,9 @@ func setOpt(state interface{}, key string, val string) *common.Error {
 	}
 }
 
-func resetState(_ *common.Pipe, state interface{}, _ string) (*common.Error, error) {
-	*state.(*Settings) = Settings{}
-	return nil, nil
+func resetState(_ *common.Pipe, state interface{}, _ string) error {
+	*(state.(*Settings)) = Settings{}
+	return nil
 }
 
 var ProtoInfo = server.ProtoInfo{
@@ -151,7 +151,7 @@ var ProtoInfo = server.ProtoInfo{
 	},
 	Help: map[string][]string{}, // TODO
 	GetDefaultState: func() interface{} {
-		return &Settings{}
+		return Settings{}
 	},
 	SetOption: setOpt,
 }
@@ -163,57 +163,57 @@ func Serve(callbacks Callbacks, customGreeting string) error {
 		info.Greeting = customGreeting
 	}
 
-	info.Handlers["GETPIN"] = func(pipe *common.Pipe, state interface{}, _ string) (*common.Error, error) {
+	info.Handlers["GETPIN"] = func(pipe *common.Pipe, state interface{}, _ string) error {
 		if callbacks.GetPIN == nil {
 			Logger.Println("GETPIN requested but not supported")
 			return &common.Error{
 				Src: common.ErrSrcPinentry, Code: common.ErrNotImplemented,
 				SrcName: "pinentry", Message: "GETPIN op is not supported",
-			}, nil
+			}
 		}
 
 		pass, err := callbacks.GetPIN(*state.(*Settings))
 		if err != nil {
-			return err, nil
+			return err
 		}
 
 		if err := pipe.WriteData([]byte(pass)); err != nil {
-			return nil, err
+			return nil
 		}
-		return nil, nil
+		return nil
 	}
-	info.Handlers["CONFIRM"] = func(pipe *common.Pipe, state interface{}, _ string) (*common.Error, error) {
+	info.Handlers["CONFIRM"] = func(pipe *common.Pipe, state interface{}, _ string) error {
 		if callbacks.Confirm == nil {
 			Logger.Println("CONFIRM requested but not supported")
 			return &common.Error{
 				Src: common.ErrSrcPinentry, Code: common.ErrNotImplemented,
 				SrcName: "pinentry", Message: "CONFIRM op is not supported",
-			}, nil
+			}
 		}
 
 		v, err := callbacks.Confirm(*state.(*Settings))
 		if err != nil {
-			return err, nil
+			return err
 		}
 
 		if !v {
 			return &common.Error{
 				Src: common.ErrSrcPinentry, Code: common.ErrCanceled,
 				SrcName: "pinentry", Message: "operation canceled",
-			}, nil
+			}
 		}
-		return nil, nil
+		return nil
 	}
-	info.Handlers["MESSAGE"] = func(pipe *common.Pipe, state interface{}, _ string) (*common.Error, error) {
+	info.Handlers["MESSAGE"] = func(pipe *common.Pipe, state interface{}, _ string) error {
 		if callbacks.Msg == nil {
 			Logger.Println("MESSAGE requested but not supported")
 			return &common.Error{
 				Src: common.ErrSrcPinentry, Code: common.ErrNotImplemented,
 				SrcName: "pinentry", Message: "MESSAGE op is not supported",
-			}, nil
+			}
 		}
 
-		return callbacks.Msg(*state.(*Settings)), nil
+		return callbacks.Msg(*state.(*Settings))
 	}
 
 	err := server.ServeStdin(info)
