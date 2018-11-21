@@ -60,6 +60,13 @@ ses.Transact("KS_PUT", "", map[string][]byte{
 
 Server code is much more complex, see it [here](server/server_test.go).
 
+Versioning & Git
+---------
+
+go-assuan follows [Semantic Versioning 2.0.0](https://semver.org). `master` branch contains
+latest **pre-release**. `dev` branch contains bleeding edge code for next release. For stable
+code use Git tags.
+
 License
 ---------
 
