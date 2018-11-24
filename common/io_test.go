@@ -124,6 +124,26 @@ func TestPipe_WriteData(t *testing.T) {
 			}
 		}
 	})
+	t.Run("line wrapping + escaping", func(t *testing.T) {
+		buf := bytes.Buffer{}
+		pipe := common.NewPipe(nil, &buf)
+		defer pipe.Close()
+
+		data := []byte(strings.Repeat("\n", common.MaxLineLen*7))
+
+		err := pipe.WriteData(data)
+
+		if err != nil {
+			t.Error("Unexpected error on pipe.WriteData:", err)
+		}
+		splitten := strings.Split(buf.String(), "\n")
+		for _, part := range splitten {
+			if len(part)+1 > common.MaxLineLen {
+				t.Error("pipe.WriteData wrote line bigger than MaxLineLen")
+				t.FailNow()
+			}
+		}
+	})
 	t.Run("from io.Reader", func(t *testing.T) {
 		buf := bytes.Buffer{}
 		pipe := common.NewPipe(nil, &buf)
@@ -141,7 +161,27 @@ func TestPipe_WriteData(t *testing.T) {
 			t.Errorf("pipe.WriteData wrote wrong line: '%s'", buf.String())
 		}
 	})
-	// TODO: Test that wrapping is done correctly and no data is corrupted.
+	t.Run("line wrapping + escaping (from io.Reader)", func(t *testing.T) {
+		buf := bytes.Buffer{}
+		pipe := common.NewPipe(nil, &buf)
+		defer pipe.Close()
+
+		data := []byte(strings.Repeat("\n", common.MaxLineLen*7))
+
+		err := pipe.WriteDataReader(bytes.NewReader(data))
+
+		if err != nil {
+			t.Error("Unexpected error on pipe.WriteData:", err)
+			t.FailNow()
+		}
+		splitten := strings.Split(buf.String(), "\n")
+		for _, part := range splitten {
+			if len(part)+1 > common.MaxLineLen {
+				t.Error("pipe.WriteData wrote line bigger than MaxLineLen")
+				t.FailNow()
+			}
+		}
+	})
 }
 
 func TestPipe_ReadData(t *testing.T) {

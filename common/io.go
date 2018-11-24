@@ -136,11 +136,13 @@ func min(a, b int) int {
 // Note: Error may occur even after some data is written so it's better
 // to just CAN transaction after WriteData error.
 func (p *Pipe) WriteData(input []byte) error {
-	encoded := []byte(escapeParameters(string(input)))
-	chunkLen := MaxLineLen - 3 // 3 is for 'D ' and line feed.
-	for i := 0; i < len(encoded); i += chunkLen {
-		chunk := encoded[i:min(i+chunkLen, len(encoded))]
-		chunk = append([]byte{'D', ' '}, chunk...)
+	// Encoding of all bytes increases stream size 3 times.
+	// So by decreasing "chunk" size to 1/3 of it we
+	// will never break this limit.
+	chunkLen := MaxLineLen/3 - 3 // -3 is for 'D ' and line feed.
+	for i := 0; i < len(input); i += chunkLen {
+		chunk := input[i:min(i+chunkLen, len(input))]
+		chunk = append([]byte{'D', ' '}, []byte(escapeParameters(string(chunk)))...)
 		chunk = append(chunk, '\n')
 
 		if _, err := p.w.Write(chunk); err != nil {
@@ -153,7 +155,10 @@ func (p *Pipe) WriteData(input []byte) error {
 // WriteDataReader is similar to WriteData but sends data from input Reader
 // until EOF.
 func (p *Pipe) WriteDataReader(input io.Reader) error {
-	chunkLen := MaxLineLen - 3 // 3 is for 'D ' and line feed.
+	// Encoding of all bytes increases stream size 3 times.
+	// So by decreasing "chunk" size to 1/3 of it we
+	// will never break this limit.
+	chunkLen := MaxLineLen/3 - 3 // -3 is for 'D ' and line feed.
 	buf := make([]byte, chunkLen)
 
 	for {
