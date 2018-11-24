@@ -85,7 +85,7 @@ func helpTest(t *testing.T) {
 				continue
 			}
 			if !strings.HasPrefix(line, "#") && line != "OK" {
-				t.Error("Response contains non-comment lines other than OK:", "'" + line + "'")
+				t.Error("Response contains non-comment lines other than OK:", "'"+line+"'")
 				t.Error(buf.String())
 				t.FailNow()
 			}

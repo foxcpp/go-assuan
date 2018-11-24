@@ -189,7 +189,7 @@ func helpCmd(pipe *common.Pipe, proto ProtoInfo, params string) error {
 	return nil
 }
 
-func defaultResetCmd(pipe *common.Pipe, _ interface{}, _ string) error {
+func defaultResetCmd(_ *common.Pipe, _ interface{}, _ string) error {
 	Logger.Println("Session reset")
 	return nil
 }
@@ -261,5 +261,4 @@ func ServeNet(listener Listener, proto ProtoInfo) error {
 			}
 		}()
 	}
-	return nil
 }

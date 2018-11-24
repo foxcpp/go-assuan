@@ -28,7 +28,9 @@ func getpin(pipe *common.Pipe, state interface{}, _ string) error {
 			SrcName: "system", Message: "I/O error",
 		}
 	}
-	pipe.WriteData(s.Bytes())
+	if err := pipe.WriteData(s.Bytes()); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -51,5 +53,7 @@ func ExampleProtoInfo() {
 			return &State{"default desc"}
 		},
 	}
-	server.ServeStdin(pinentry)
+	if err := server.ServeStdin(pinentry); err != nil {
+		fmt.Println(err)
+	}
 }

@@ -182,7 +182,7 @@ func Serve(callbacks Callbacks, customGreeting string) error {
 		}
 		return nil
 	}
-	info.Handlers["CONFIRM"] = func(pipe *common.Pipe, state interface{}, _ string) error {
+	info.Handlers["CONFIRM"] = func(_ *common.Pipe, state interface{}, _ string) error {
 		if callbacks.Confirm == nil {
 			Logger.Println("CONFIRM requested but not supported")
 			return &common.Error{
@@ -204,7 +204,7 @@ func Serve(callbacks Callbacks, customGreeting string) error {
 		}
 		return nil
 	}
-	info.Handlers["MESSAGE"] = func(pipe *common.Pipe, state interface{}, _ string) error {
+	info.Handlers["MESSAGE"] = func(_ *common.Pipe, state interface{}, _ string) error {
 		if callbacks.Msg == nil {
 			Logger.Println("MESSAGE requested but not supported")
 			return &common.Error{

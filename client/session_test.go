@@ -23,10 +23,12 @@ func ExampleSession() {
 	// data []byte = "info:1:1%0Apub:2499BEB8B47B0235009A5F0AEE8384B0561A25AF:..."
 
 	// More complex transaction: send key to keyserver.
-	ses.Transact("KS_PUT", "", map[string]interface{}{
+	if _, err := ses.Transact("KS_PUT", "", map[string]interface{}{
 		"KEYBLOCK":      []byte{},
 		"KEYBLOCK_INFO": []byte{},
-	})
+	}); err != nil {
+		fmt.Println(err)
+	}
 }
 
 func TestInitClose(t *testing.T) {
@@ -62,7 +64,7 @@ OK`)
 	if err != nil {
 		t.Log("Unexpected error on client.SimpleCmd:", err)
 	}
-	if data != nil && len(data) != 0 {
+	if len(data) != 0 {
 		t.Log("Unexpected data received:", data)
 	}
 }
