@@ -3,8 +3,7 @@ go-assuan
 
 [![Travis CI](https://img.shields.io/travis/com/foxcpp/go-assuan.svg?style=flat-square&logo=Linux)](https://travis-ci.com/foxcpp/go-assuan)
 [![CodeCov](https://img.shields.io/codecov/c/github/foxcpp/go-assuan.svg?style=flat-square)](https://codecov.io/gh/foxcpp/go-assuan)
-[![Issues](https://img.shields.io/github/issues-raw/foxcpp/go-assuan.svg?style=flat-square)](https://github.com/foxcpp/go-assuan/issues)
-[![License](https://img.shields.io/github/license/foxcpp/go-assuan.svg?style=flat-square)](https://github.com/foxcpp/go-assuan/blob/master/LICENSE)
+[![stability-stable](https://img.shields.io/badge/stability-stable-green.svg?style=flat-square)](https://github.com/emersion/stability-badges#stable)
 [![Go Report Card](https://goreportcard.com/badge/github.com/foxcpp/go-assuan)](https://goreportcard.com/report/github.com/foxcpp/go-assuan)
 
 Pure Go implementation of Assuan IPC protocol.
