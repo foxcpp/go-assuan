@@ -1,6 +1,11 @@
 sudo: false
 language: go
 
+cache:
+  directories:
+  - /home/travis/gopath/pkg/linux_amd64
+  - /home/travis/gopath/pkg/mod
+
 go:
 - "1.x"
 
@@ -8,7 +13,7 @@ env:
 - GO111MODULE=on
 
 install:
-- curl -sfL https://install.goreleaser.com/github.com/golangci/golangci-lint.sh | sh -s -- -b $GOPATH/bin v1.12.3
+- curl -sfL https://install.goreleaser.com/github.com/golangci/golangci-lint.sh | sh -s -- -b $GOPATH/bin v1.16.0
 
 script:
 - golangci-lint run -E megacheck,deadcode,typecheck,govet,misspell,prealloc,gofmt,gocyclo,goconst,dupl,unconvert,interfacer,unparam
