@@ -23,7 +23,11 @@ jobs:
         go get -v -t -d ./...
         
     - name: Build
+      env:
+        GO111MODULE: on
       run: go build -v .
       
     - name: Test
+      env:
+        GO111MODULE: on
       run: go test ./...
