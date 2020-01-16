@@ -101,6 +101,9 @@ func (ses *Session) SimpleCmd(cmd string, params string) (data []byte, err error
 		}
 
 		if scmd == "OK" {
+			if data != nil && data[len(data)-1] == '\n' {
+				data = data[:len(data)-1]
+			}
 			return data, nil
 		}
 		if scmd == "ERR" {
@@ -109,6 +112,11 @@ func (ses *Session) SimpleCmd(cmd string, params string) (data []byte, err error
 		}
 		if scmd == "D" {
 			data = append(data, []byte(sparams)...)
+			data = append(data, "\n"...)
+		}
+		if scmd == "S" {
+			data = append(data, []byte(sparams)...)
+			data = append(data, "\n"...)
 		}
 	}
 }

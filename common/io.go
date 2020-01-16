@@ -79,7 +79,7 @@ func (p *Pipe) ReadLine() (cmd string, params string, err error) {
 		line = p.scnr.Text()
 
 		// We got something that looks like a message. Let's parse it.
-		if !strings.HasPrefix(line, "#") && !strings.HasPrefix(line, "S ") && len(strings.TrimSpace(line)) != 0 {
+		if !strings.HasPrefix(line, "#") && len(strings.TrimSpace(line)) != 0 {
 			break
 		}
 	}
